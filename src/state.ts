@@ -2,9 +2,9 @@
 // event layer mutates it and asks for a re-render. Ephemeral UI bits (open
 // menus, draft text, active tab) live here alongside loaded data.
 
-import type { Comment, Issue, InstallPoint, Package, Registry, Review, User } from "./types.js";
+import type { Comment, Issue, InstallPoint, Package, Registry, Review, User, ViewUser } from "./types.js";
 
-export type Screen = "home" | "search" | "package" | "auth" | "account";
+export type Screen = "home" | "search" | "package" | "auth" | "account" | "user";
 export type PkgTab = "readme" | "reviews" | "comments" | "issues" | "versions";
 export type Sort = "popular" | "quality" | "recent";
 export type AcctTab = "profile" | "plugins" | "stars" | "settings";
@@ -58,6 +58,10 @@ export interface AppState {
 
     // install history (for the sidebar sparkline)
     installSeries: InstallPoint[];
+
+    // public user profile (#/u/{login})
+    viewUser: ViewUser | null;
+    viewUserLoading: boolean;
 
     // account
     acctTab: AcctTab;
@@ -114,6 +118,9 @@ export const state: AppState = {
     replyPreview: false,
 
     installSeries: [],
+
+    viewUser: null,
+    viewUserLoading: false,
 
     acctTab: "profile",
     starShorts: null,

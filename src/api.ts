@@ -18,6 +18,7 @@ import type {
     Review,
     User,
     UserEmail,
+    ViewUser,
 } from "./types.js";
 import {
     avatarBg,
@@ -234,6 +235,18 @@ export async function getMe(): Promise<User | null> {
 
 // Build the GitHub sign-in URL. When star is true, the backend additionally
 // requests the public_repo scope so it can star repos on the user's behalf.
+// Fetch a registered wago user's public profile by login. Returns null when
+// there's no such member (or no backend), so the caller can generate a profile.
+export async function getPublicUser(login: string): Promise<ViewUser | null> {
+    if (mode !== "remote") return null;
+    try {
+        const raw = await apiGet<ViewUser>(`/api/users/${encodeURIComponent(login)}`);
+        return { ...raw, claimed: true };
+    } catch {
+        return null; // 404 (not a member) or unreachable
+    }
+}
+
 export function signInUrl(returnTo: string, star = false): string {
     const base = `${API_BASE}/auth/github/login?redirect=${encodeURIComponent(returnTo)}`;
     return star ? `${base}&star=1` : base;

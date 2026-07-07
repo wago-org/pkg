@@ -1018,8 +1018,8 @@ function pkgSidebar(s: AppState): string {
         : "";
 
     const authors = (p.authors || [])
-        .map((a) =>
-            ghAvatarSpan(
+        .map((a) => {
+            const av = ghAvatarSpan(
                 a.github,
                 a.name,
                 (a.name || "?")[0].toUpperCase(),
@@ -1027,13 +1027,17 @@ function pkgSidebar(s: AppState): string {
                 undefined,
                 34,
                 13,
-            ),
-        )
+            );
+            // Clickable → wago profile when we have a GitHub login for them.
+            return a.github ? profileLinkWrap(a.github, av) : av;
+        })
         .join("");
     const contributors = (p.contributors || [])
-        .map(
-            (login) =>
-                `<a href="https://github.com/${escAttr(login)}" target="_blank" rel="noopener" title="${escAttr(login)}" style="text-decoration:none">${ghAvatarSpan(login, login, login[0].toUpperCase(), avatarBgFor(login), undefined, 30, 11)}</a>`,
+        .map((login) =>
+            profileLinkWrap(
+                login,
+                ghAvatarSpan(login, login, login[0].toUpperCase(), avatarBgFor(login), undefined, 30, 11),
+            ),
         )
         .join("");
     const weekLabel = compactNum(s.installSeries.slice(-7).reduce((a, b) => a + b.count, 0) || p.installsWeek);
@@ -1079,6 +1083,11 @@ function pkgSidebar(s: AppState): string {
       ${kwSection}
       <a href="${escAttr(p.repository)}" target="_blank" rel="noopener" style="text-decoration:none;text-align:center;margin-top:14px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${C.bg};background:${C.lilac};padding:11px;border-radius:10px">Repository ↗</a>
     </aside>`;
+}
+
+// Wrap an avatar (or any inline content) in a link to a user's wago profile.
+function profileLinkWrap(login: string, inner: string): string {
+    return `<a href="#/u/${escAttr(login)}" data-act="user" data-arg="${escAttr(login)}" title="@${escAttr(login)}" style="text-decoration:none;cursor:pointer">${inner}</a>`;
 }
 
 function avatarBgFor(seed: string): string {
@@ -1179,6 +1188,7 @@ function ownedPlugins(s: AppState): (Package & { role: string })[] {
 
 const ROLE_STYLE: Record<string, { color: string; bg: string; border: string }> = {
     owner: { color: "#1a1547", bg: "#74e0ad", border: "#74e0ad" },
+    author: { color: "#1a1547", bg: "#c3a8ff", border: "#c3a8ff" },
     maintainer: { color: "#c3a8ff", bg: "#221c52", border: "#443a8c" },
 };
 
@@ -1321,6 +1331,117 @@ function acctStars(s: AppState): string {
         </div>
         ${body}
       </div>`;
+}
+
+// ── public user profile (#/u/{login}) ─────────────────────────────────────────
+
+// Packages a given login is part of, with their role (owner > author > maintainer).
+function userPackages(s: AppState, login: string): (Package & { role: string })[] {
+    const reg = s.registry;
+    if (!reg) return [];
+    const key = login.toLowerCase();
+    const out: (Package & { role: string })[] = [];
+    for (const p of reg.packages) {
+        const isOwner = (p.ownerLogin || "").toLowerCase() === key;
+        const isAuthor = (p.authors || []).some((a) => (a.github || "").toLowerCase() === key);
+        const isContrib = (p.contributors || []).some((c) => c.toLowerCase() === key);
+        if (!isOwner && !isAuthor && !isContrib) continue;
+        out.push(Object.assign({}, p, { role: isOwner ? "owner" : isAuthor ? "author" : "maintainer" }));
+    }
+    return out;
+}
+
+export function userScreen(s: AppState): string {
+    const vu = s.viewUser;
+    if (!vu) {
+        return `<div style="padding:120px 0;text-align:center;color:${C.muted};font-size:15px">Loading profile…</div>`;
+    }
+    const login = vu.login;
+    const pkgs = userPackages(s, login);
+    const totalStars = pkgs.reduce((a, b) => a + (b.stars || 0), 0);
+    const totalInstalls = pkgs.reduce((a, b) => a + (b.installsWeek || 0), 0);
+    const initial = (vu.name || login || "?").trim()[0]?.toUpperCase() || "?";
+
+    // The "toggle": claimed wago member vs a profile generated from public data.
+    const badge = vu.claimed
+        ? `<span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:${C.bg};background:${C.green};padding:4px 11px;border-radius:100px">✦ wago member</span>`
+        : `<span title="This person hasn't signed in to wago yet" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:${C.muted};background:${C.deep};border:1px solid ${C.line2};padding:4px 11px;border-radius:100px">generated profile</span>`;
+
+    const meta = [
+        vu.company ? `<span>🏢 ${esc(vu.company)}</span>` : "",
+        vu.location ? `<span>📍 ${esc(vu.location)}</span>` : "",
+        vu.blog
+            ? `<a href="${escAttr(profileHref(vu.blog))}" target="_blank" rel="noopener" style="color:${C.lilac};text-decoration:none">🔗 ${esc(vu.blog)}</a>`
+            : "",
+        vu.twitterUsername
+            ? `<a href="https://twitter.com/${escAttr(vu.twitterUsername)}" target="_blank" rel="noopener" style="color:${C.lilac};text-decoration:none">@${esc(vu.twitterUsername)}</a>`
+            : "",
+        vu.claimed && vu.createdAt && memberFor(vu.createdAt)
+            ? `<span>🎂 wago member for ${esc(memberFor(vu.createdAt))}</span>`
+            : "",
+        vu.githubCreatedAt ? `<span>🗓 On GitHub since ${esc(joinedLabel(vu.githubCreatedAt))}</span>` : "",
+        `<a href="${escAttr(vu.htmlUrl || `https://github.com/${login}`)}" target="_blank" rel="noopener" style="color:${C.muted};text-decoration:none">⎇ github.com/${esc(login)}</a>`,
+    ]
+        .filter(Boolean)
+        .join("");
+
+    const statCard = (value: string, label: string, color: string): string =>
+        `<div style="background:${C.panel};border:1px solid ${C.line};border-radius:14px;padding:18px 20px;text-align:center"><div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:28px;color:${color};line-height:1">${esc(value)}</div><div style="font-size:12.5px;color:${C.muted};margin-top:5px">${esc(label)}</div></div>`;
+
+    const rows =
+        pkgs
+            .map((p, i) => {
+                const rs = ROLE_STYLE[p.role] || ROLE_STYLE.maintainer;
+                return `
+            <a href="#/p/${escAttr(p.short)}" data-act="open" data-arg="${escAttr(p.short)}" style="text-decoration:none;display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;padding:15px 18px;border-top:${i === 0 ? "none" : `1px solid ${C.line}`};background:${C.panel}">
+              <div style="min-width:0">
+                <div style="display:flex;align-items:center;gap:9px;margin-bottom:3px;flex-wrap:wrap">
+                  <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14.5px;color:${C.lilac}">${esc(p.short)}</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted}">${esc(p.version)}</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:${rs.color};background:${rs.bg};border:1px solid ${rs.border};padding:2px 8px;border-radius:100px">${esc(p.role)}</span>
+                </div>
+                <p style="font-size:13px;color:${C.soft};margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.description)}</p>
+              </div>
+              <div style="text-align:right;white-space:nowrap"><div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted}">★ ${p.stars.toLocaleString()} · ↓ ${esc(p.installsWeekLabel)}/wk</div></div>
+            </a>`;
+            })
+            .join("") ||
+        `<div style="padding:20px;color:${C.muted};font-size:14px;background:${C.panel}">No packages found for this user in the registry.</div>`;
+
+    const loadingHint = s.viewUserLoading
+        ? `<div style="font-size:12px;color:${C.muted};margin-top:8px">Loading profile…</div>`
+        : "";
+    const unclaimedNote = !vu.claimed
+        ? `<div style="background:${C.deep};border:1px solid ${C.line};border-radius:12px;padding:12px 16px;margin-bottom:18px;font-size:13px;color:${C.soft}">This profile was generated from public registry and GitHub data — <b style="color:${C.text}">${esc(vu.name)}</b> hasn't signed in to wago yet. If this is you, sign in with GitHub to claim it.</div>`
+        : "";
+
+    return `
+<div style="padding:32px 0 72px">
+  <div style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:${C.muted};margin-bottom:16px"><a href="#/" data-act="home" style="text-decoration:none;color:${C.muted}">packages</a> <span style="color:${C.line2}">/</span> <span style="color:${C.lilac}">@${esc(login)}</span></div>
+  ${unclaimedNote}
+  <div style="display:flex;align-items:flex-start;gap:20px;background:${C.panel};border:1px solid ${C.line};border-radius:18px;padding:26px;margin-bottom:18px;flex-wrap:wrap">
+    ${avatarSpan(vu.name, initial, avatarBgFor(login), vu.avatarUrl, 76, 30)}
+    <div style="flex:1;min-width:200px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:3px">
+        <h1 style="font-weight:800;font-size:26px;letter-spacing:-0.6px;margin:0">${esc(vu.name)}</h1>
+        ${badge}
+      </div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:13px;color:${C.lilac};margin-bottom:12px">@${esc(login)}</div>
+      ${vu.bio ? `<p style="font-size:14.5px;line-height:1.6;color:${C.soft};margin:0 0 12px;max-width:520px">${esc(vu.bio)}</p>` : ""}
+      <div style="display:flex;gap:16px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;font-size:12px;color:${C.muted}">${meta}</div>
+      ${loadingHint}
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:26px">
+    ${statCard(String(pkgs.length), "packages", C.lilac)}
+    ${statCard(compactNum(totalStars), "★ stars received", C.green)}
+    ${statCard(compactNum(totalInstalls), "installs / week", C.pink)}
+  </div>
+
+  <h2 style="font-weight:800;font-size:20px;letter-spacing:-0.5px;margin:0 0 14px">Packages</h2>
+  <div style="border:1px solid ${C.line};border-radius:14px;overflow:hidden">${rows}</div>
+</div>`;
 }
 
 function acctSettings(s: AppState): string {

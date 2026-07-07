@@ -128,6 +128,28 @@ export interface Package {
     issues?: Issue[];
 }
 
+// A public profile of any user (author/contributor), shown at #/u/{login}.
+// `claimed` distinguishes a real wago member (signed in) from a profile we
+// generated from public registry + GitHub data.
+export interface ViewUser {
+    login: string;
+    name: string;
+    avatarUrl?: string;
+    bio?: string;
+    company?: string;
+    location?: string;
+    blog?: string;
+    twitterUsername?: string;
+    htmlUrl?: string;
+    githubCreatedAt?: string;
+    createdAt?: string; // wago join date (claimed members only)
+    followers?: number;
+    following?: number;
+    publicRepos?: number;
+    starsGiven?: number;
+    claimed: boolean;
+}
+
 export interface CategoryDef {
     key: string;
     label: string;

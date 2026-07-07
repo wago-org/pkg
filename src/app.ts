@@ -15,9 +15,11 @@ import {
     nav,
     packageScreen,
     searchScreen,
+    userScreen,
 } from "./screens.js";
 import { findPackage, state } from "./state.js";
 import type { AcctTab, PkgTab, Sort } from "./state.js";
+import type { ViewUser } from "./types.js";
 
 const root = (): HTMLElement => document.getElementById("app")!;
 
@@ -36,6 +38,8 @@ function screenBody(): string {
             return authScreen(state);
         case "account":
             return state.user ? accountScreen(state) : authScreen(state);
+        case "user":
+            return userScreen(state);
         default:
             return homeScreen(state);
     }
@@ -61,6 +65,10 @@ async function route(): Promise<void> {
 
     if (parts[0] === "p" && parts[1]) {
         await openPackage(decodeURIComponent(parts[1]), false);
+        return;
+    }
+    if (parts[0] === "u" && parts[1]) {
+        await openUser(decodeURIComponent(parts[1]), false);
         return;
     }
     if (parts[0] === "search") {
@@ -198,6 +206,60 @@ function scrollTop(): void {
     } catch {
         /* non-browser */
     }
+}
+
+// ── public user profiles (#/u/{login}) ───────────────────────────────────────
+
+// A display name for a login pulled from the registry (an author entry), else "".
+function registryDisplayName(login: string): string {
+    const key = login.toLowerCase();
+    for (const p of state.registry?.packages || []) {
+        for (const a of p.authors || []) {
+            if ((a.github || "").toLowerCase() === key && a.name) return a.name;
+        }
+    }
+    return "";
+}
+
+// Open a user's wago profile. Shows a claimed member's profile when one exists,
+// otherwise a profile generated from the registry + GitHub public data. Both are
+// enriched with the real GitHub avatar/bio, fetched client-side and cached.
+async function openUser(login: string, push = true): Promise<void> {
+    if (!login) return;
+    state.screen = "user";
+    state.menuOpen = false;
+    const seedName = registryDisplayName(login) || login;
+    // Seed synchronously so the header paints immediately with what we know.
+    state.viewUser = { login, name: seedName, claimed: false };
+    state.viewUserLoading = true;
+    if (push) pushUrl(`#/u/${encodeURIComponent(login)}`);
+    render();
+    scrollTop();
+
+    const [claimed, gh] = await Promise.all([api.getPublicUser(login), github.fetchUser(login)]);
+    if (state.viewUser?.login !== login) return; // navigated away meanwhile
+
+    const merged: ViewUser = {
+        login,
+        name: claimed?.name || gh?.name || seedName,
+        avatarUrl: claimed?.avatarUrl || gh?.avatarUrl,
+        bio: claimed?.bio || gh?.bio,
+        company: claimed?.company,
+        location: claimed?.location,
+        blog: claimed?.blog,
+        twitterUsername: claimed?.twitterUsername,
+        htmlUrl: claimed?.htmlUrl || `https://github.com/${login}`,
+        githubCreatedAt: claimed?.githubCreatedAt,
+        createdAt: claimed?.createdAt,
+        followers: claimed?.followers,
+        following: claimed?.following,
+        publicRepos: claimed?.publicRepos,
+        starsGiven: claimed?.starsGiven,
+        claimed: !!claimed,
+    };
+    state.viewUser = merged;
+    state.viewUserLoading = false;
+    render();
 }
 
 // ── reviews ──────────────────────────────────────────────────────────────────
@@ -646,6 +708,9 @@ function dispatch(act: string, arg: string | null, el: HTMLElement): void {
             break;
         case "open":
             if (arg) void openPackage(arg);
+            break;
+        case "user":
+            if (arg) void openUser(arg);
             break;
         case "search":
             navSearch();

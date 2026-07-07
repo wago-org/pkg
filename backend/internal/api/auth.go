@@ -167,6 +167,36 @@ func (a *App) handleMe(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, m)
 }
 
+// handlePublicUser returns a public profile for a registered wago user by login,
+// or 404 if no one with that login has signed in. No auth required and no
+// sensitive fields (email, token) are exposed — the client uses this to show a
+// claimed "wago member" profile, falling back to a generated one otherwise.
+func (a *App) handlePublicUser(w http.ResponseWriter, r *http.Request) {
+	u, ok := a.Store.GetUserByLogin(r.PathValue("login"))
+	if !ok {
+		httpx.WriteError(w, http.StatusNotFound, "user not found")
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{
+		"login":           u.Login,
+		"name":            u.Name,
+		"avatarUrl":       u.AvatarURL,
+		"bio":             u.Bio,
+		"company":         u.Company,
+		"location":        u.Location,
+		"blog":            u.Blog,
+		"twitterUsername": u.TwitterUsername,
+		"htmlUrl":         u.HTMLURL,
+		"githubCreatedAt": u.GithubCreatedAt,
+		"createdAt":       u.CreatedAt,
+		"followers":       u.Followers,
+		"following":       u.Following,
+		"publicRepos":     u.PublicRepos,
+		"starsGiven":      len(a.Store.StarsForUser(u.ID)),
+		"claimed":         true,
+	})
+}
+
 // handleCreateToken mints an API token for the current user (for CI use). The
 // plaintext is returned once and never stored.
 func (a *App) handleCreateToken(w http.ResponseWriter, r *http.Request) {
