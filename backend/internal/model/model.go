@@ -126,8 +126,19 @@ type User struct {
 	PublicRepos     int    `json:"publicRepos,omitempty"`
 	Hireable        bool   `json:"hireable,omitempty"`
 
+	// CreatedAt is when the user first signed in to wago (RFC3339), used to show
+	// how long they've been a member. Distinct from GithubCreatedAt (their GitHub
+	// account age).
+	CreatedAt string `json:"createdAt,omitempty"`
+
 	// Associated emails: the GitHub primary plus any user-added secondaries.
 	Emails []UserEmail `json:"emails,omitempty"`
+
+	// Server-only GitHub OAuth material. Persisted so the registry can star
+	// repositories on the user's behalf, but stripped from every API response by
+	// api.sanitize — these never reach the client.
+	GitHubToken  string `json:"githubToken,omitempty"`
+	GitHubScopes string `json:"githubScopes,omitempty"`
 }
 
 // Review is the persisted form of a package review. Author identity is joined in

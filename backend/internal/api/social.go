@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"sort"
+	"strings"
 
 	"github.com/wago-org/registry-backend/internal/httpx"
 	"github.com/wago-org/registry-backend/internal/model"
@@ -30,6 +31,64 @@ func (a *App) setStar(w http.ResponseWriter, r *http.Request, starred bool) {
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"stars": p.Stars + count, "starred": starred})
+}
+
+// handleGitHubStar / handleGitHubUnstar star or unstar the package's repository
+// on GitHub on the user's behalf, using their stored OAuth token. Requires the
+// public_repo scope — without it, responds 403 so the client can offer to
+// re-authorize. Also mirrors the star into the local "Your stars" list.
+func (a *App) handleGitHubStar(w http.ResponseWriter, r *http.Request) { a.setGitHubStar(w, r, true) }
+func (a *App) handleGitHubUnstar(w http.ResponseWriter, r *http.Request) {
+	a.setGitHubStar(w, r, false)
+}
+
+func (a *App) setGitHubStar(w http.ResponseWriter, r *http.Request, on bool) {
+	u := a.Sessions.CurrentUser(r)
+	if u == nil {
+		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	p, ok := a.Store.GetPackage(r.PathValue("name"))
+	if !ok {
+		httpx.WriteError(w, http.StatusNotFound, "package not found")
+		return
+	}
+	owner, repo, ok := parseGitHubRepo(p.Repository)
+	if !ok {
+		httpx.WriteError(w, http.StatusBadRequest, "package has no GitHub repository")
+		return
+	}
+	if u.GitHubToken == "" || !hasStarScope(u.GitHubScopes) {
+		httpx.WriteError(w, http.StatusForbidden, "need_permission")
+		return
+	}
+	if err := a.GitHub.SetStar(u.GitHubToken, owner, repo, on); err != nil {
+		// The token may have been revoked or lacks scope — treat as needing
+		// re-authorization rather than a server error.
+		httpx.WriteError(w, http.StatusForbidden, "need_permission")
+		return
+	}
+	// Keep the local "Your stars" list in sync.
+	if _, err := a.Store.SetStar(p.Short, u.ID, on); err != nil {
+		httpx.WriteError(w, http.StatusInternalServerError, "store error")
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "starred": on})
+}
+
+// parseGitHubRepo extracts owner/repo from a GitHub repository URL.
+func parseGitHubRepo(repository string) (owner, repo string, ok bool) {
+	i := strings.Index(repository, "github.com/")
+	if i < 0 {
+		return "", "", false
+	}
+	rest := strings.Trim(repository[i+len("github.com/"):], "/")
+	rest = strings.TrimSuffix(rest, ".git")
+	parts := strings.SplitN(rest, "/", 3)
+	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", false
+	}
+	return parts[0], strings.TrimSuffix(parts[1], ".git"), true
 }
 
 // handleMyStars returns the package shorts the current user has starred.

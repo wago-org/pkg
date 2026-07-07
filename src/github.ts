@@ -107,6 +107,54 @@ export async function fetchIssues(owner: string, repo: string): Promise<Issue[] 
     }
 }
 
+// --- Repositories (real star / fork counts) ---
+
+export interface GhRepo {
+    stars: number;
+    forks: number;
+    htmlUrl: string;
+}
+
+interface GhRepoRaw {
+    stargazers_count: number;
+    forks_count: number;
+    html_url: string;
+}
+
+// starsFor returns the cached GitHub stargazer count for a repo, or null if we
+// haven't fetched it yet. Synchronous cache read — does not fetch.
+export function starsFor(owner: string, repo: string): number | null {
+    const r = cacheGet<GhRepo>(`repo.${owner}/${repo}`.toLowerCase());
+    return r ? r.stars : null;
+}
+
+// fetchRepo loads and caches a repository's public counts. Returns null on any
+// failure (rate-limit / 404 / offline) so callers keep their seed numbers.
+export async function fetchRepo(owner: string, repo: string): Promise<GhRepo | null> {
+    const key = `repo.${owner}/${repo}`.toLowerCase();
+    const cached = cacheGet<GhRepo>(key);
+    if (cached) return cached;
+    if (inFlight.has(key)) return inFlight.get(key) as Promise<GhRepo | null>;
+
+    const p = (async (): Promise<GhRepo | null> => {
+        const raw = await ghFetch<GhRepoRaw>(`/repos/${owner}/${repo}`);
+        if (!raw) return null;
+        const out: GhRepo = {
+            stars: raw.stargazers_count,
+            forks: raw.forks_count,
+            htmlUrl: raw.html_url,
+        };
+        cacheSet(key, out);
+        return out;
+    })();
+    inFlight.set(key, p);
+    try {
+        return await p;
+    } finally {
+        inFlight.delete(key);
+    }
+}
+
 // --- Users (profile pictures) ---
 
 export interface GhUser {

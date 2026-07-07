@@ -36,6 +36,12 @@ export interface AppState {
     starCount: number;
     bookmarked: boolean;
 
+    // GitHub star consent flow (option 1: star the real repo on the user's
+    // behalf). starPrompt shows the consent panel; starPromptDontAsk mirrors the
+    // "don't ask again" checkbox inside it.
+    starPrompt: boolean;
+    starPromptDontAsk: boolean;
+
     // GitHub issue sync (client-side fetch)
     ghIssues: Issue[] | null; // null = not synced; [] = synced but empty
     ghIssuesLoading: boolean;
@@ -92,6 +98,8 @@ export const state: AppState = {
     starred: false,
     starCount: 0,
     bookmarked: false,
+    starPrompt: false,
+    starPromptDontAsk: false,
 
     ghIssues: null,
     ghIssuesLoading: false,

@@ -60,18 +60,29 @@ type ghEmail struct {
 	Verified bool   `json:"verified"`
 }
 
-// AuthorizeURL builds the GitHub OAuth authorize URL for the given state.
-func (g *GitHub) AuthorizeURL(state string) string {
+// AuthorizeURL builds the GitHub OAuth authorize URL for the given state. When
+// star is true the public_repo scope is also requested, letting the registry
+// star repositories on the user's behalf.
+func (g *GitHub) AuthorizeURL(state string, star bool) string {
+	scope := "read:user user:email"
+	if star {
+		scope += " public_repo"
+	}
 	q := url.Values{}
 	q.Set("client_id", g.clientID)
 	q.Set("redirect_uri", g.redirectURL)
-	q.Set("scope", "read:user user:email")
+	q.Set("scope", scope)
 	q.Set("state", state)
+	// Always show GitHub's account picker so users with multiple GitHub accounts
+	// consciously choose one instead of being silently signed in with whichever
+	// account is currently active in the browser.
+	q.Set("prompt", "select_account")
 	return "https://github.com/login/oauth/authorize?" + q.Encode()
 }
 
-// ExchangeCode swaps an OAuth code for an access token.
-func (g *GitHub) ExchangeCode(code string) (string, error) {
+// ExchangeCode swaps an OAuth code for an access token, returning the token and
+// the comma-separated scopes GitHub actually granted.
+func (g *GitHub) ExchangeCode(code string) (token, scope string, err error) {
 	form := url.Values{}
 	form.Set("client_id", g.clientID)
 	form.Set("client_secret", g.clientSecret)
@@ -82,37 +93,65 @@ func (g *GitHub) ExchangeCode(code string) (string, error) {
 		"https://github.com/login/oauth/access_token",
 		strings.NewReader(form.Encode()))
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := githubHTTP.Do(req)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", errors.New("github token exchange failed: " + resp.Status)
+		return "", "", errors.New("github token exchange failed: " + resp.Status)
 	}
 	var tok struct {
 		AccessToken string `json:"access_token"`
+		Scope       string `json:"scope"`
 		Error       string `json:"error"`
 	}
 	if err := json.Unmarshal(body, &tok); err != nil {
-		return "", err
+		return "", "", err
 	}
 	if tok.Error != "" {
-		return "", errors.New("github token error: " + tok.Error)
+		return "", "", errors.New("github token error: " + tok.Error)
 	}
 	if tok.AccessToken == "" {
-		return "", errors.New("github returned empty access token")
+		return "", "", errors.New("github returned empty access token")
 	}
-	return tok.AccessToken, nil
+	return tok.AccessToken, tok.Scope, nil
+}
+
+// SetStar stars (on=true) or unstars (on=false) owner/repo on behalf of the
+// token's user. Requires a token with public_repo (or repo) scope.
+func (g *GitHub) SetStar(token, owner, repo string, on bool) error {
+	method := http.MethodDelete
+	if on {
+		method = http.MethodPut
+	}
+	endpoint := "https://api.github.com/user/starred/" + url.PathEscape(owner) + "/" + url.PathEscape(repo)
+	req, err := http.NewRequest(method, endpoint, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("Content-Length", "0")
+	resp, err := githubHTTP.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	// 204 = success; 304 = already in desired state.
+	if resp.StatusCode == http.StatusNoContent || resp.StatusCode == http.StatusNotModified {
+		return nil
+	}
+	return errors.New("github star failed: " + resp.Status)
 }
 
 // FetchUser retrieves the authenticated GitHub user, resolving a primary email

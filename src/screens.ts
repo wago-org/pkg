@@ -14,7 +14,7 @@ import type {
     UserEmail,
     VersionRow,
 } from "./types.js";
-import { compactNum, esc, escAttr, relativeDate, shortHash, sparkline, starStr, tier } from "./util.js";
+import { compactNum, esc, escAttr, memberFor, relativeDate, shortHash, sparkline, starStr, tier } from "./util.js";
 import { mdBlock } from "./markdown.js";
 import { avatarFor } from "./github.js";
 
@@ -517,7 +517,7 @@ export function packageScreen(s: AppState): string {
     // bookmark (save-for-later, per-browser) + star, to the right of the badges
     const bm = s.bookmarked;
     const bookmarkBtn = `<button data-act="bookmark" title="${bm ? "Saved" : "Save for later"}" style="display:inline-flex;align-items:center;gap:8px;font-family:'Outfit',sans-serif;font-weight:700;font-size:13.5px;color:${C.text};background:${bm ? C.panel : "transparent"};border:1px solid ${bm ? C.lilac : C.line2};padding:8px 14px;border-radius:9px;cursor:pointer;transition:all .15s">${bookmarkIcon(15, bm ? C.lilac : C.muted, bm)} ${bm ? "Saved" : "Save"}</button>`;
-    const starBtn = `<button data-act="star" style="display:inline-flex;align-items:center;gap:8px;font-family:'Outfit',sans-serif;font-weight:700;font-size:13.5px;color:${C.text};background:${s.starred ? C.panel : "transparent"};border:1px solid ${s.starred ? C.lilac : C.line2};padding:8px 14px;border-radius:9px;cursor:pointer;transition:all .15s"><span style="font-size:15px;color:${s.starred ? C.lilac : C.muted}">★</span> ${s.starred ? "Starred" : "Star"} <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12.5px;background:${C.deep};padding:2px 8px;border-radius:6px">${s.starCount.toLocaleString()}</span></button>`;
+    const starBtn = `<button data-act="star" title="${s.starred ? "In your stars — opens the repo on GitHub" : "Star this repository on GitHub"}" style="display:inline-flex;align-items:center;gap:8px;font-family:'Outfit',sans-serif;font-weight:700;font-size:13.5px;color:${C.text};background:${s.starred ? C.panel : "transparent"};border:1px solid ${s.starred ? C.lilac : C.line2};padding:8px 14px;border-radius:9px;cursor:pointer;transition:all .15s"><span style="font-size:15px;color:${s.starred ? C.lilac : C.muted}">★</span> ${s.starred ? "Starred" : "Star on GitHub ↗"} <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12.5px;background:${C.deep};padding:2px 8px;border-radius:6px">${s.starCount.toLocaleString()}</span></button>`;
 
     return `
 <div style="padding:28px 0 72px">
@@ -543,7 +543,37 @@ export function packageScreen(s: AppState): string {
     </main>
     ${pkgSidebar(s)}
   </div>
+  ${s.starPrompt ? starConsentModal(s) : ""}
 </div>`;
+}
+
+// Consent panel shown the first time a signed-in user without star permission
+// tries to star a package. They can grant permission (so we star the real repo
+// for them from then on), just be sent to GitHub to star manually, and tick
+// "don't ask again" to skip this next time.
+function starConsentModal(s: AppState): string {
+    const repo = s.pkg?.short ? esc(s.pkg.short) : "this package";
+    const check = s.starPromptDontAsk;
+    return `
+    <div data-act="star-cancel" style="position:fixed;inset:0;z-index:120;background:rgba(11,8,32,0.66);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:20px">
+      <div data-act="noop" style="width:100%;max-width:420px;background:${C.panel};border:1px solid ${C.line2};border-radius:18px;padding:24px 24px 20px;box-shadow:0 30px 60px -20px rgba(0,0,0,.75)">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+          <span style="font-size:22px;color:${C.lilac}">★</span>
+          <h2 style="font-weight:800;font-size:18px;margin:0">Star ${repo} on GitHub</h2>
+        </div>
+        <p style="font-size:14px;line-height:1.6;color:${C.soft};margin:0 0 8px">Stars here are real GitHub stars. Let wago star the repository for you and it happens in one click — we only ask for permission to star public repos on your behalf, nothing else.</p>
+        <p style="font-size:12.5px;line-height:1.55;color:${C.muted};margin:0 0 18px">Prefer to do it yourself? We can just open the repo on GitHub so you can hit ★ there.</p>
+        <label data-act="star-dontask" style="display:flex;align-items:center;gap:9px;font-size:13px;color:${C.soft};cursor:pointer;margin-bottom:18px">
+          <span style="width:17px;height:17px;border-radius:5px;border:1px solid ${check ? C.lilac : C.line2};background:${check ? C.lilac : "transparent"};display:inline-flex;align-items:center;justify-content:center;color:${C.bg};font-size:11px;flex-shrink:0">${check ? "✓" : ""}</span>
+          Don't ask again on this browser
+        </label>
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <button data-act="star-allow" style="width:100%;font-family:'Outfit',sans-serif;font-weight:700;font-size:14px;color:${C.bg};background:${C.lilac};border:none;padding:12px;border-radius:11px;cursor:pointer">Allow wago to star for me</button>
+          <button data-act="star-just-github" style="width:100%;font-family:'Outfit',sans-serif;font-weight:700;font-size:14px;color:${C.text};background:transparent;border:1px solid ${C.line2};padding:12px;border-radius:11px;cursor:pointer">Just open GitHub ↗</button>
+          <button data-act="star-cancel" style="width:100%;font-family:'JetBrains Mono',monospace;font-weight:600;font-size:12.5px;color:${C.muted};background:transparent;border:none;padding:6px;border-radius:8px;cursor:pointer">Cancel</button>
+        </div>
+      </div>
+    </div>`;
 }
 
 function deprecationBanner(message: string): string {
@@ -1187,7 +1217,8 @@ function acctProfile(s: AppState): string {
               ${u.location ? `<span>📍 ${esc(u.location)}</span>` : ""}
               ${u.blog ? `<a href="${escAttr(profileHref(u.blog))}" target="_blank" rel="noopener" style="color:${C.lilac};text-decoration:none">🔗 ${esc(u.blog)}</a>` : ""}
               ${u.twitterUsername ? `<a href="https://twitter.com/${escAttr(u.twitterUsername)}" target="_blank" rel="noopener" style="color:${C.lilac};text-decoration:none">@${esc(u.twitterUsername)}</a>` : ""}
-              ${u.githubCreatedAt ? `<span>🗓 Joined ${esc(joinedLabel(u.githubCreatedAt))}</span>` : ""}
+              ${u.createdAt && memberFor(u.createdAt) ? `<span title="Joined wago ${esc(joinedLabel(u.createdAt))}">🎂 wago member for ${esc(memberFor(u.createdAt))}</span>` : ""}
+              ${u.githubCreatedAt ? `<span>🗓 On GitHub since ${esc(joinedLabel(u.githubCreatedAt))}</span>` : ""}
               <a href="${escAttr(u.htmlUrl || `https://github.com/${u.login}`)}" target="_blank" rel="noopener" style="color:${C.muted};text-decoration:none">⎇ github.com/${esc(u.login)}</a>
             </div>
             ${profileStats(u)}
