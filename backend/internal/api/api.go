@@ -136,6 +136,7 @@ func (a *App) NewRouter() http.Handler {
 	mux.HandleFunc("GET /auth/github/callback", a.handleCallback)
 	mux.HandleFunc("POST /api/logout", a.handleLogout)
 	mux.HandleFunc("GET /api/me", a.handleMe)
+	mux.HandleFunc("GET /api/me/stars", a.handleMyStars)
 
 	// Secondary emails (add + verify with an emailed code).
 	mux.HandleFunc("GET /api/me/emails", a.handleListEmails)

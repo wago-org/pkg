@@ -145,7 +145,7 @@ export function nav(s: AppState): string {
   <a href="#/" data-act="home" style="display:flex;align-items:center;gap:11px;text-decoration:none;flex-shrink:0">
     <img src="/assets/wago-logo.png" alt="wago" style="width:34px;height:34px;border-radius:9px;flex-shrink:0" />
     <span style="font-weight:800;font-size:20px;letter-spacing:-0.5px">wago</span>
-    <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.lilac};border:1px solid ${C.line2};padding:3px 10px;border-radius:100px;margin-left:2px">plugins</span>
+    <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.lilac};border:1px solid ${C.line2};padding:3px 10px;border-radius:100px;margin-left:2px">packages</span>
   </a>
   <div style="flex:1;display:flex;align-items:center;gap:10px;background:${C.deep};border:1px solid ${C.line};border-radius:10px;padding:9px 14px;max-width:560px">
     <span style="color:${C.muted};font-size:15px">⌕</span>
@@ -213,7 +213,8 @@ function profileMenu(s: AppState): string {
     const u = s.user!;
     const menuItems = [
         { label: "Your profile", icon: "◉", tab: "profile" },
-        { label: "Your plugins", icon: "▤", tab: "plugins" },
+        { label: "Your packages", icon: "▤", tab: "plugins" },
+        { label: "Your stars", icon: "★", tab: "stars" },
         { label: "Settings", icon: "⚙", tab: "settings" },
     ]
         .map(
@@ -258,7 +259,7 @@ export function footer(s: AppState): string {
   <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:20px;padding:28px 0">
     <div style="display:flex;align-items:center;gap:12px">
       <img src="/assets/wago-logo.png" alt="" style="width:34px;height:34px;border-radius:9px" />
-      <span style="font-size:13px;color:${C.muted}">wago plugins · ${esc(total)} packages · Apache 2.0</span>
+      <span style="font-size:13px;color:${C.muted}">wago packages · ${esc(total)} indexed · Apache 2.0</span>
     </div>
     <div style="display:flex;gap:22px;font-size:14px;font-weight:600;color:${C.lilac}">
       <a href="https://github.com/wago-org/wago" target="_blank" rel="noopener" style="text-decoration:none">GitHub</a>
@@ -312,12 +313,12 @@ export function homeScreen(s: AppState): string {
     return `
 <div>
   <section style="text-align:center;padding:72px 0 40px">
-    <div style="display:inline-flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:12px;color:${C.lilac};background:${C.panel};border:1px solid ${C.line};padding:6px 14px;border-radius:100px;margin-bottom:24px">✦ the wago plugin registry</div>
+    <div style="display:inline-flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:12px;color:${C.lilac};background:${C.panel};border:1px solid ${C.line};padding:6px 14px;border-radius:100px;margin-bottom:24px">✦ the wago package registry</div>
     <h1 style="font-weight:900;font-size:clamp(36px,5.5vw,58px);line-height:1.02;letter-spacing:-2px;margin:0 0 16px">Extend your runtime.<br><span style="color:${C.lilac}">One import away.</span></h1>
     <p style="font-size:18px;line-height:1.6;color:${C.soft};margin:0 auto 34px;max-width:560px">Host-import bundles, WASI shims, debuggers and codegen backends — drop-in Go modules for the wago engine.</p>
     <div style="display:flex;align-items:center;gap:11px;background:${C.deep};border:1px solid ${C.line};border-radius:14px;padding:14px 18px;max-width:600px;margin:0 auto 18px">
       <span style="color:${C.muted};font-size:20px">⌕</span>
-      <input value="${escAttr(s.query)}" data-act="query" data-enter="search" placeholder="Search ${esc(totalLabel)} plugins…" style="flex:1;background:transparent;border:none;outline:none;color:${C.text};font-size:17px" />
+      <input value="${escAttr(s.query)}" data-act="query" data-enter="search" placeholder="Search ${esc(totalLabel)} packages…" style="flex:1;background:transparent;border:none;outline:none;color:${C.text};font-size:17px" />
       <button data-act="search" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${C.bg};background:${C.lilac};border:none;padding:9px 18px;border-radius:9px;cursor:pointer">Search</button>
     </div>
     <div style="display:flex;justify-content:center;gap:9px;flex-wrap:wrap">${cats}</div>
@@ -327,7 +328,7 @@ export function homeScreen(s: AppState): string {
 
   <section style="margin-bottom:52px">
     <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:18px">
-      <h2 style="font-weight:800;font-size:24px;letter-spacing:-0.6px;margin:0">Featured plugins</h2>
+      <h2 style="font-weight:800;font-size:24px;letter-spacing:-0.6px;margin:0">Featured packages</h2>
       <a href="#/search" data-act="search" style="text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:${C.lilac}">browse all →</a>
     </div>
     <div style="display:flex;align-items:center;gap:16px;margin:-6px 0 16px;font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted};flex-wrap:wrap">
@@ -448,7 +449,7 @@ export function searchScreen(s: AppState): string {
 }
 
 function emptyState(): string {
-    return `<div style="background:${C.panel};border:1px solid ${C.line};border-radius:14px;padding:40px;text-align:center;color:${C.muted};font-size:14px">No plugins match those filters.</div>`;
+    return `<div style="background:${C.panel};border:1px solid ${C.line};border-radius:14px;padding:40px;text-align:center;color:${C.muted};font-size:14px">No packages match those filters.</div>`;
 }
 
 function searchRow(p: Package): string {
@@ -520,7 +521,7 @@ export function packageScreen(s: AppState): string {
 
     return `
 <div style="padding:28px 0 72px">
-  <div style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:${C.muted};margin-bottom:16px"><a href="#/" data-act="home" style="text-decoration:none;color:${C.muted}">plugins</a> <span style="color:${C.line2}">/</span> <a href="#/search" data-act="cat" data-arg="${escAttr(p.category)}" style="text-decoration:none;color:${C.muted}">${esc(p.category)}</a> <span style="color:${C.line2}">/</span> <span style="color:${C.lilac}">${esc(p.short)}</span></div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:${C.muted};margin-bottom:16px"><a href="#/" data-act="home" style="text-decoration:none;color:${C.muted}">packages</a> <span style="color:${C.line2}">/</span> <a href="#/search" data-act="cat" data-arg="${escAttr(p.category)}" style="text-decoration:none;color:${C.muted}">${esc(p.category)}</a> <span style="color:${C.line2}">/</span> <span style="color:${C.lilac}">${esc(p.short)}</span></div>
 
   <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">
     <h1 style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:clamp(24px,3.4vw,34px);letter-spacing:-1px;margin:0;word-break:break-all">${esc(p.name)}</h1>
@@ -570,7 +571,7 @@ function pkgTabBody(s: AppState): string {
 function readmeTab(s: AppState): string {
     const p = s.pkg!;
     const code = `<span style="color:#6f64a8"># add the subpackage to your custom wago build</span>
-$ wago plugin add ${esc(p.name)}
+$ wago pkg add ${esc(p.name)}
 
 <span style="color:#6f64a8"># or in Go — register the extension on the runtime</span>
 rt := wago.<span style="color:${C.lilac}">New</span>()
@@ -622,7 +623,7 @@ function reviewsTab(s: AppState): string {
         ? s.composerOpen
             ? composerOpenBlock(s, activeRating)
             : composerClosedBlock()
-        : signInPrompt("star this plugin or leave a review");
+        : signInPrompt("star this package or leave a review");
     const list = s.reviewsLoading
         ? loading("Loading reviews…")
         : s.reviews.map((r) => reviewCard(r)).join("") || empty("No reviews yet. Be the first.");
@@ -634,7 +635,7 @@ function reviewsTab(s: AppState): string {
       <div style="font-size:16px;letter-spacing:2px;color:${tier(p.score)};margin-top:4px">${starStr(p.rating)}</div>
       <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted};margin-top:5px">${s.reviewsSummary.count || p.ratingCount} ratings</div>
     </div>
-    <div style="flex:1;min-width:220px;font-size:14px;line-height:1.6;color:${C.soft}">Developers rate this plugin highly for reliability and documentation. Share how it worked for you.</div>
+    <div style="flex:1;min-width:220px;font-size:14px;line-height:1.6;color:${C.soft}">Developers rate this package highly for reliability and documentation. Share how it worked for you.</div>
   </div>
   ${composer}
   <div style="display:flex;flex-direction:column;gap:14px">${list}</div>
@@ -659,7 +660,7 @@ function empty(txt: string): string {
 function composerClosedBlock(): string {
     return `
   <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:${C.deep};border:1px solid ${C.line};border-radius:14px;padding:14px 20px;margin-bottom:24px;flex-wrap:wrap">
-    <span style="font-size:13.5px;color:${C.soft}">Used this plugin? A quick ★ star above helps others — or leave a full review.</span>
+    <span style="font-size:13.5px;color:${C.soft}">Used this package? A quick ★ star above helps others — or leave a full review.</span>
     <button data-act="composer-open" style="font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:700;color:${C.lilac};background:transparent;border:1px solid ${C.line2};padding:8px 15px;border-radius:9px;cursor:pointer;white-space:nowrap">Write a review</button>
   </div>`;
 }
@@ -928,7 +929,7 @@ function pkgSidebar(s: AppState): string {
         ? counts.map((c) => (c / max) * 100)
         : [40, 52, 38, 60, 55, 72, 64, 80, 70, 88, 76, 95];
     const spark = sparkline(norm);
-    const installCmd = `wago plugin add ${p.name}`;
+    const installCmd = `wago pkg add ${p.name}`;
 
     const meta: [string, string][] = [
         ["Last publish", relative(p.updatedAt)],
@@ -1069,7 +1070,7 @@ export function authScreen(s: AppState): string {
     <div style="text-align:center;margin-bottom:26px">
       <img src="/assets/wago-logo.png" alt="wago" style="width:52px;height:52px;border-radius:13px;margin-bottom:16px" />
       <h1 style="font-weight:800;font-size:26px;letter-spacing:-0.8px;margin:0 0 6px">Sign in to wago</h1>
-      <p style="font-size:14.5px;line-height:1.55;color:${C.muted};margin:0">Use your GitHub account to star, review and publish plugins — no separate password to manage.</p>
+      <p style="font-size:14.5px;line-height:1.55;color:${C.muted};margin:0">Use your GitHub account to star, review and publish packages — no separate password to manage.</p>
     </div>
     ${err}
     <div style="background:${C.panel};border:1px solid ${C.line};border-radius:18px;padding:30px 26px">
@@ -1104,7 +1105,8 @@ export function accountScreen(s: AppState): string {
     const u = s.user!;
     const nav = [
         { k: "profile", l: "Profile", icon: "◉" },
-        { k: "plugins", l: "Your plugins", icon: "▤" },
+        { k: "plugins", l: "Your packages", icon: "▤" },
+        { k: "stars", l: "Your stars", icon: "★" },
         { k: "settings", l: "Settings", icon: "⚙" },
     ]
         .map((n) => {
@@ -1114,6 +1116,7 @@ export function accountScreen(s: AppState): string {
         .join("");
     let body = "";
     if (s.acctTab === "plugins") body = acctPlugins(s);
+    else if (s.acctTab === "stars") body = acctStars(s);
     else if (s.acctTab === "settings") body = acctSettings(s);
     else body = acctProfile(s);
 
@@ -1169,7 +1172,7 @@ function acctProfile(s: AppState): string {
               <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted};white-space:nowrap">updated ${esc(relative(p.updatedAt))}</span>
             </a>`;
             })
-            .join("") || `<div style="padding:18px;color:${C.muted};font-size:13.5px;background:${C.panel}">You haven't published any plugins yet.</div>`;
+            .join("") || `<div style="padding:18px;color:${C.muted};font-size:13.5px;background:${C.panel}">You haven't published any packages yet.</div>`;
     const bio = s.bioDraft != null ? s.bioDraft : u.bio || "";
     return `
       <div>
@@ -1189,17 +1192,20 @@ function acctProfile(s: AppState): string {
             </div>
             ${profileStats(u)}
           </div>
-          <a href="#/account" data-act="acct-tab" data-arg="settings" style="text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${C.text};border:1px solid ${C.line2};padding:9px 15px;border-radius:9px">Edit profile</a>
+          <div style="display:flex;gap:8px;flex-shrink:0">
+            <button data-act="sync-github" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${C.text};background:transparent;border:1px solid ${C.line2};padding:9px 15px;border-radius:9px;cursor:pointer">⟳ Sync from GitHub</button>
+            <a href="#/account" data-act="acct-tab" data-arg="settings" style="text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${C.text};border:1px solid ${C.line2};padding:9px 15px;border-radius:9px">Edit profile</a>
+          </div>
         </div>
 
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:26px">
-          <div style="background:${C.panel};border:1px solid ${C.line};border-radius:14px;padding:18px 20px;text-align:center"><div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:28px;color:${C.lilac};line-height:1">${owned.length}</div><div style="font-size:12.5px;color:${C.muted};margin-top:5px">plugins published</div></div>
-          <div style="background:${C.panel};border:1px solid ${C.line};border-radius:14px;padding:18px 20px;text-align:center"><div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:28px;color:${C.green};line-height:1">42</div><div style="font-size:12.5px;color:${C.muted};margin-top:5px">★ stars given</div></div>
+          <div style="background:${C.panel};border:1px solid ${C.line};border-radius:14px;padding:18px 20px;text-align:center"><div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:28px;color:${C.lilac};line-height:1">${owned.length}</div><div style="font-size:12.5px;color:${C.muted};margin-top:5px">packages published</div></div>
+          <a href="#/account" data-act="acct-tab" data-arg="stars" style="text-decoration:none;background:${C.panel};border:1px solid ${C.line};border-radius:14px;padding:18px 20px;text-align:center;display:block"><div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:28px;color:${C.green};line-height:1">${s.starShorts ? s.starShorts.length : "—"}</div><div style="font-size:12.5px;color:${C.muted};margin-top:5px">★ stars given</div></a>
           <div style="background:${C.panel};border:1px solid ${C.line};border-radius:14px;padding:18px 20px;text-align:center"><div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:28px;color:${C.pink};line-height:1">${compactNum(owned.reduce((a, b) => a + b.installsWeek, 0))}</div><div style="font-size:12.5px;color:${C.muted};margin-top:5px">installs / week</div></div>
         </div>
 
         <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px">
-          <h2 style="font-weight:800;font-size:20px;letter-spacing:-0.5px;margin:0">Your plugins</h2>
+          <h2 style="font-weight:800;font-size:20px;letter-spacing:-0.5px;margin:0">Your packages</h2>
           <a href="#/account" data-act="acct-tab" data-arg="plugins" style="text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:${C.lilac}">manage all →</a>
         </div>
         <div style="border:1px solid ${C.line};border-radius:14px;overflow:hidden">${rows}</div>
@@ -1228,14 +1234,61 @@ function acctPlugins(s: AppState): string {
               </div>
             </div>`;
             })
-            .join("") || `<div style="padding:18px;color:${C.muted};font-size:13.5px;background:${C.panel}">Nothing published yet. Run <span style="font-family:'JetBrains Mono',monospace;color:${C.lilac}">wago plugin publish</span> in your module.</div>`;
+            .join("") || `<div style="padding:18px;color:${C.muted};font-size:13.5px;background:${C.panel}">Nothing published yet. Run <span style="font-family:'JetBrains Mono',monospace;color:${C.lilac}">wago pkg publish</span> in your module.</div>`;
     return `
       <div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px">
-          <h1 style="font-weight:800;font-size:24px;letter-spacing:-0.6px;margin:0">Your plugins <span style="font-family:'JetBrains Mono',monospace;font-size:15px;color:${C.muted};font-weight:500">${owned.length}</span></h1>
-          <a href="https://github.com/wago-org/wago" target="_blank" rel="noopener" style="text-decoration:none;font-size:13px;font-weight:700;color:${C.bg};background:${C.lilac};padding:9px 16px;border-radius:9px">Publish a plugin ↗</a>
+          <h1 style="font-weight:800;font-size:24px;letter-spacing:-0.6px;margin:0">Your packages <span style="font-family:'JetBrains Mono',monospace;font-size:15px;color:${C.muted};font-weight:500">${owned.length}</span></h1>
+          <a href="https://github.com/wago-org/wago" target="_blank" rel="noopener" style="text-decoration:none;font-size:13px;font-weight:700;color:${C.bg};background:${C.lilac};padding:9px 16px;border-radius:9px">Publish a package ↗</a>
         </div>
         <div style="border:1px solid ${C.line};border-radius:14px;overflow:hidden">${rows}</div>
+      </div>`;
+}
+
+// "Your stars" — the packages the current user has starred, resolved from the
+// registry index. starShorts is null while loading.
+function acctStars(s: AppState): string {
+    const reg = s.registry;
+    const shorts = s.starShorts;
+    const byShort = new Map((reg?.packages || []).map((p) => [p.short, p]));
+    const starred = (shorts || []).map((sh) => byShort.get(sh)).filter((p): p is Package => !!p);
+
+    let body: string;
+    if (shorts === null) {
+        body = `<div style="padding:20px;color:${C.muted};font-size:14px;background:${C.panel}">Loading your stars…</div>`;
+    } else if (starred.length === 0) {
+        body = `<div style="padding:26px;color:${C.muted};font-size:14px;background:${C.panel};text-align:center">You haven't starred any packages yet. Browse the registry and hit ★ on ones you like.<div style="margin-top:12px"><a href="#/search" data-act="search" style="text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:700;color:${C.lilac};border:1px solid ${C.line2};padding:8px 15px;border-radius:9px">Browse packages →</a></div></div>`;
+    } else {
+        const list = starred
+            .map(
+                (p, i) => `
+            <a href="#/p/${escAttr(p.short)}" data-act="open" data-arg="${escAttr(p.short)}" style="text-decoration:none;display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;padding:16px 20px;border-top:${i === 0 ? "none" : `1px solid ${C.line}`};background:${C.panel}">
+              <div style="min-width:0">
+                <div style="display:flex;align-items:center;gap:9px;margin-bottom:3px;flex-wrap:wrap">
+                  <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14.5px;color:${C.lilac}">${esc(p.short)}</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted}">${esc(p.version)}</span>
+                  ${p.verified ? `<span style="color:${C.green};font-size:12px">✦</span>` : ""}
+                </div>
+                <p style="font-size:13px;color:${C.soft};margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.description)}</p>
+              </div>
+              <div style="text-align:right;white-space:nowrap">
+                <div style="font-size:12px;letter-spacing:1px;color:${tier(p.score)}">${starStr(p.rating)}</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted};margin-top:3px">★ ${p.stars.toLocaleString()} · ↓ ${esc(p.installsWeekLabel)}/wk</div>
+              </div>
+            </a>`,
+            )
+            .join("");
+        body = `<div style="border:1px solid ${C.line};border-radius:14px;overflow:hidden">${list}</div>`;
+    }
+
+    const count = shorts === null ? "" : ` <span style="font-family:'JetBrains Mono',monospace;font-size:15px;color:${C.muted};font-weight:500">${starred.length}</span>`;
+    return `
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px">
+          <h1 style="font-weight:800;font-size:24px;letter-spacing:-0.6px;margin:0">Your stars${count}</h1>
+          <a href="#/search" data-act="search" style="text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:700;color:${C.lilac}">browse all →</a>
+        </div>
+        ${body}
       </div>`;
 }
 
@@ -1243,7 +1296,7 @@ function acctSettings(s: AppState): string {
     const u = s.user!;
     const bio = s.bioDraft != null ? s.bioDraft : u.bio || "";
     const toggles = [
-        { k: "releases", l: "New releases from plugins you use" },
+        { k: "releases", l: "New releases from packages you use" },
         { k: "security", l: "Security advisories" },
         { k: "digest", l: "Weekly digest" },
     ]
@@ -1293,7 +1346,7 @@ function acctSettings(s: AppState): string {
         <div style="background:#2a1230;border:1px solid #6b3453;border-radius:16px;padding:22px 24px">
           <div style="font-weight:700;font-size:16px;color:#ffb4d2;margin-bottom:14px">Danger zone</div>
           <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
-            <div style="min-width:200px"><div style="font-size:14px;font-weight:600;color:${C.text};margin-bottom:2px">Delete account</div><div style="font-size:12.5px;color:#b78ba3">Permanently removes your account and unpublishes your plugins.</div></div>
+            <div style="min-width:200px"><div style="font-size:14px;font-weight:600;color:${C.text};margin-bottom:2px">Delete account</div><div style="font-size:12.5px;color:#b78ba3">Permanently removes your account and unpublishes your packages.</div></div>
             <button data-act="signout" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#ffb4d2;background:transparent;border:1px solid #6b3453;padding:10px 16px;border-radius:9px;cursor:pointer">Delete account</button>
           </div>
         </div>

@@ -77,6 +77,7 @@ async function route(): Promise<void> {
     if (parts[0] === "account") {
         state.screen = state.user ? "account" : "auth";
         render();
+        if (state.user) void loadStars();
         return;
     }
     state.screen = "home";
@@ -120,6 +121,19 @@ function navAccount(tab: AcctTab): void {
     pushUrl("#/account");
     render();
     scrollTop();
+    void loadStars();
+}
+
+// Load the current user's starred packages (used by the profile stat and the
+// "Your stars" tab). Fired whenever the account screen is shown.
+async function loadStars(): Promise<void> {
+    if (!state.user) return;
+    try {
+        state.starShorts = await api.myStars();
+    } catch {
+        state.starShorts = [];
+    }
+    if (state.screen === "account") render();
 }
 
 async function openPackage(short: string, push = true): Promise<void> {

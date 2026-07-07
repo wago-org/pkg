@@ -7,7 +7,7 @@ import type { Comment, Issue, InstallPoint, Package, Registry, Review, User } fr
 export type Screen = "home" | "search" | "package" | "auth" | "account";
 export type PkgTab = "readme" | "reviews" | "comments" | "issues" | "versions";
 export type Sort = "popular" | "quality" | "recent";
-export type AcctTab = "profile" | "plugins" | "settings";
+export type AcctTab = "profile" | "plugins" | "stars" | "settings";
 
 export interface AppState {
     registry: Registry | null;
@@ -55,6 +55,7 @@ export interface AppState {
 
     // account
     acctTab: AcctTab;
+    starShorts: string[] | null; // packages the user has starred (null = unloaded)
     menuOpen: boolean;
     settings: { releases: boolean; security: boolean; digest: boolean };
     bioDraft: string | null;
@@ -107,6 +108,7 @@ export const state: AppState = {
     installSeries: [],
 
     acctTab: "profile",
+    starShorts: null,
     menuOpen: false,
     settings: { releases: true, security: true, digest: false },
     bioDraft: null,

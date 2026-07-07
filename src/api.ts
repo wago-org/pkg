@@ -357,6 +357,21 @@ export async function setStar(
     return { stars: pkg.stars + ((on ? 1 : 0) - (was ? 1 : 0)), starred: on };
 }
 
+// The package shorts the current user has starred. Remote: a backend join;
+// local: the per-browser localStorage star set.
+export async function myStars(): Promise<string[]> {
+    if (mode === "remote") {
+        try {
+            const r = await apiGet<{ stars: string[] }>("/api/me/stars");
+            return r.stars || [];
+        } catch {
+            return [];
+        }
+    }
+    const stars = lsGet<Record<string, boolean>>(LS.stars, {});
+    return Object.keys(stars).filter((k) => stars[k]);
+}
+
 export function localStarState(pkg: Package): { stars: number; starred: boolean } {
     if (mode === "remote") return { stars: pkg.stars, starred: !!pkg.starred };
     const stars = lsGet<Record<string, boolean>>(LS.stars, {});

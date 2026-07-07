@@ -461,6 +461,21 @@ func (s *PebbleStore) IsStarred(short, userID string) bool {
 	return false
 }
 
+func (s *PebbleStore) StarsForUser(userID string) []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []string
+	for short, ids := range s.doc.Stars {
+		for _, id := range ids {
+			if id == userID {
+				out = append(out, short)
+				break
+			}
+		}
+	}
+	return out
+}
+
 func (s *PebbleStore) SetStar(short, userID string, starred bool) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

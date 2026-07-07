@@ -32,6 +32,20 @@ func (a *App) setStar(w http.ResponseWriter, r *http.Request, starred bool) {
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"stars": p.Stars + count, "starred": starred})
 }
 
+// handleMyStars returns the package shorts the current user has starred.
+func (a *App) handleMyStars(w http.ResponseWriter, r *http.Request) {
+	u := a.Sessions.CurrentUser(r)
+	if u == nil {
+		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	shorts := a.Store.StarsForUser(u.ID)
+	if shorts == nil {
+		shorts = []string{}
+	}
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"stars": shorts})
+}
+
 // --- Reviews ---
 
 // reviewView is the client-facing review with joined author and vote fields.

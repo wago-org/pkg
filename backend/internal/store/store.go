@@ -37,6 +37,8 @@ type Store interface {
 	StarCounts() map[string]int
 	IsStarred(short, userID string) bool
 	SetStar(short, userID string, starred bool) (int, error)
+	// StarsForUser returns the package shorts a user has starred.
+	StarsForUser(userID string) []string
 
 	// Reviews and their votes.
 	ReviewsForPackage(short string) []model.Review
