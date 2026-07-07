@@ -143,6 +143,12 @@ export interface InstallPoint {
     count: number;
 }
 
+export interface UserEmail {
+    address: string;
+    verified: boolean;
+    source: "github" | "added";
+}
+
 export interface User {
     id: number | string;
     login: string;
@@ -150,6 +156,18 @@ export interface User {
     avatarUrl?: string;
     email?: string;
     bio?: string;
+    // rich GitHub profile
+    company?: string;
+    location?: string;
+    blog?: string;
+    twitterUsername?: string;
+    htmlUrl?: string;
+    githubCreatedAt?: string;
+    followers?: number;
+    following?: number;
+    publicRepos?: number;
+    hireable?: boolean;
+    emails?: UserEmail[];
     initial: string;
     bg: string;
 }

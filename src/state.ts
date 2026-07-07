@@ -51,6 +51,11 @@ export interface AppState {
     settings: { releases: boolean; security: boolean; digest: boolean };
     bioDraft: string | null;
 
+    // secondary emails (settings)
+    emailDraft: string;
+    verifyDrafts: Record<string, string>;
+    emailMsg: string | null;
+
     authError: string | null;
 }
 
@@ -90,6 +95,10 @@ export const state: AppState = {
     menuOpen: false,
     settings: { releases: true, security: true, digest: false },
     bioDraft: null,
+
+    emailDraft: "",
+    verifyDrafts: {},
+    emailMsg: null,
 
     authError: null,
 };

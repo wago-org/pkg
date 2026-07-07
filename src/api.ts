@@ -17,6 +17,7 @@ import type {
     Registry,
     Review,
     User,
+    UserEmail,
 } from "./types.js";
 import {
     avatarBg,
@@ -250,6 +251,80 @@ export async function signOut(): Promise<void> {
         return;
     }
     localStorage.removeItem(LS.user);
+}
+
+// ── secondary emails ─────────────────────────────────────────────────────────
+// Remote: real endpoints (adds email → mailed 6-digit code → verify). Local:
+// faked against the stored demo user so the settings UI stays explorable.
+
+function localEmails(): UserEmail[] {
+    const u = lsGet<User | null>(LS.user, null);
+    if (!u) return [];
+    if (!u.emails && u.email) {
+        u.emails = [{ address: u.email, verified: true, source: "github" }];
+        lsSet(LS.user, u);
+    }
+    return u.emails || [];
+}
+
+function setLocalEmails(emails: UserEmail[]): UserEmail[] {
+    const u = lsGet<User | null>(LS.user, null);
+    if (u) {
+        u.emails = emails;
+        lsSet(LS.user, u);
+    }
+    return emails;
+}
+
+export async function listEmails(): Promise<UserEmail[]> {
+    if (mode === "remote") {
+        const r = await apiGet<{ emails: UserEmail[] }>("/api/me/emails");
+        return r.emails || [];
+    }
+    return localEmails();
+}
+
+export async function addEmail(email: string): Promise<{ ok: boolean; sent: boolean }> {
+    if (mode === "remote") {
+        return apiSend<{ ok: boolean; sent: boolean }>("/api/me/emails", "POST", { email });
+    }
+    const emails = localEmails();
+    if (emails.some((e) => e.address.toLowerCase() === email.toLowerCase())) {
+        throw new Error("email already on your account");
+    }
+    setLocalEmails([...emails, { address: email, verified: false, source: "added" }]);
+    return { ok: true, sent: false };
+}
+
+export async function verifyEmail(email: string, code: string): Promise<UserEmail[]> {
+    if (mode === "remote") {
+        const r = await apiSend<{ emails: UserEmail[] }>("/api/me/emails/verify", "POST", {
+            email,
+            code,
+        });
+        return r.emails || [];
+    }
+    // Local demo: any code verifies.
+    return setLocalEmails(
+        localEmails().map((e) =>
+            e.address.toLowerCase() === email.toLowerCase() ? { ...e, verified: true } : e,
+        ),
+    );
+}
+
+export async function deleteEmail(email: string): Promise<UserEmail[]> {
+    if (mode === "remote") {
+        const r = await apiSend<{ emails: UserEmail[] }>(
+            `/api/me/emails/${encodeURIComponent(email)}`,
+            "DELETE",
+        );
+        return r.emails || [];
+    }
+    return setLocalEmails(
+        localEmails().filter(
+            (e) => !(e.source === "added" && e.address.toLowerCase() === email.toLowerCase()),
+        ),
+    );
 }
 
 // ── package detail ───────────────────────────────────────────────────────────
