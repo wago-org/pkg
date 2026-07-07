@@ -1,0 +1,141 @@
+// Package api wires the registry's HTTP endpoints. The App struct holds the
+// config, store, and auth dependencies; NewRouter builds the net/http 1.22
+// method+pattern mux and wraps it with CORS. This package sits at the top of the
+// import graph (model, store, auth, httpx, config).
+package api
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strconv"
+
+	"github.com/wago-org/registry-backend/internal/auth"
+	"github.com/wago-org/registry-backend/internal/config"
+	"github.com/wago-org/registry-backend/internal/httpx"
+	"github.com/wago-org/registry-backend/internal/model"
+	"github.com/wago-org/registry-backend/internal/store"
+)
+
+// App holds the shared runtime dependencies for the HTTP handlers.
+type App struct {
+	Cfg      config.Config
+	Store    store.Store
+	Sessions *auth.Sessions
+	GitHub   *auth.GitHub
+}
+
+// New builds an App and its auth dependencies from config and a store.
+func New(cfg config.Config, st store.Store) *App {
+	return &App{
+		Cfg:      cfg,
+		Store:    st,
+		Sessions: auth.NewSessions(cfg, st),
+		GitHub:   auth.NewGitHub(cfg),
+	}
+}
+
+// NewRouter registers every endpoint and wraps the mux with CORS.
+func (a *App) NewRouter() http.Handler {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /api/health", a.handleHealth)
+
+	// Auth.
+	mux.HandleFunc("GET /auth/github/login", a.handleLogin)
+	mux.HandleFunc("GET /auth/github/callback", a.handleCallback)
+	mux.HandleFunc("POST /api/logout", a.handleLogout)
+	mux.HandleFunc("GET /api/me", a.handleMe)
+
+	// Packages.
+	mux.HandleFunc("GET /api/packages", a.handleListPackages)
+	mux.HandleFunc("GET /api/packages/{name}", a.handleGetPackage)
+	mux.HandleFunc("GET /api/packages/{name}/versions", a.handleVersions)
+
+	// Installs.
+	mux.HandleFunc("POST /api/packages/{name}/installs", a.handleRecordInstall)
+	mux.HandleFunc("GET /api/packages/{name}/installs", a.handleInstallSeries)
+
+	// Social: stars, reviews, votes, comments.
+	mux.HandleFunc("POST /api/packages/{name}/star", a.handleStar)
+	mux.HandleFunc("DELETE /api/packages/{name}/star", a.handleUnstar)
+	mux.HandleFunc("GET /api/packages/{name}/reviews", a.handleListReviews)
+	mux.HandleFunc("POST /api/packages/{name}/reviews", a.handleCreateReview)
+	mux.HandleFunc("POST /api/reviews/{id}/vote", a.handleVote)
+	mux.HandleFunc("GET /api/packages/{name}/comments", a.handleListComments)
+	mux.HandleFunc("POST /api/packages/{name}/comments", a.handleCreateComment)
+	mux.HandleFunc("DELETE /api/comments/{id}", a.handleDeleteComment)
+
+	// Publish.
+	mux.HandleFunc("POST /api/publish", a.handlePublish)
+
+	return httpx.CORS(a.Cfg.FrontendURL, mux)
+}
+
+func (a *App) handleHealth(w http.ResponseWriter, r *http.Request) {
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "packages": a.Store.PackageCount()})
+}
+
+// decodeJSON decodes a size-limited JSON body into v.
+func decodeJSON(w http.ResponseWriter, r *http.Request, v any, max int64) error {
+	return json.NewDecoder(http.MaxBytesReader(w, r.Body, max)).Decode(v)
+}
+
+// compactCount renders an install count in a compact form: >=1e6 -> "4.2M",
+// >=1e3 -> "48.2k", else the number.
+func compactCount(n int) string {
+	switch {
+	case n >= 1_000_000:
+		return trimZero(float64(n)/1_000_000) + "M"
+	case n >= 1_000:
+		return trimZero(float64(n)/1_000) + "k"
+	default:
+		return strconv.Itoa(n)
+	}
+}
+
+// trimZero formats a float to one decimal place, dropping a trailing ".0".
+func trimZero(f float64) string {
+	s := fmt.Sprintf("%.1f", f)
+	if len(s) > 2 && s[len(s)-2:] == ".0" {
+		return s[:len(s)-2]
+	}
+	return s
+}
+
+// decoratePackage marshals a stored Package to a map and layers on the derived
+// fields the frontend expects (live stars, installs, latest-version convenience
+// fields). When viewerID is non-empty, "starred" is included.
+func (a *App) decoratePackage(p model.Package, viewerID string) map[string]any {
+	raw, _ := json.Marshal(p)
+	var m map[string]any
+	_ = json.Unmarshal(raw, &m)
+
+	latest := p.LatestVersion()
+	m["version"] = latest.Version
+	m["latestVersion"] = latest.Version
+	if latest.PublishedAt != "" {
+		m["updatedAt"] = latest.PublishedAt
+	}
+
+	m["stars"] = p.Stars + a.Store.StarCount(p.Short)
+	if viewerID != "" {
+		m["starred"] = a.Store.IsStarred(p.Short, viewerID)
+	}
+
+	week := a.Store.InstallWeek(p.Short)
+	total := a.Store.InstallTotal(p.Short)
+	m["installsWeek"] = week
+	m["installsWeekLabel"] = compactCount(week)
+	m["installsTotal"] = total
+
+	return m
+}
+
+// viewerID returns the current user's id, or "" when unauthenticated.
+func (a *App) viewerID(r *http.Request) string {
+	if u := a.Sessions.CurrentUser(r); u != nil {
+		return u.ID
+	}
+	return ""
+}

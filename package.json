@@ -1,0 +1,16 @@
+{
+    "name": "wago-registry",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "description": "The wago plugin registry — pkg.wago.sh",
+    "scripts": {
+        "build": "tsc && rm -rf dist && mkdir -p dist && cp -r index.html assets data CNAME dist/",
+        "dev": "tsc --watch --preserveWatchOutput",
+        "typecheck": "tsc --noEmit",
+        "serve": "python3 -m http.server 8000"
+    },
+    "devDependencies": {
+        "typescript": "^5.6.3"
+    }
+}

@@ -1,0 +1,14 @@
+# Registry store (created/seeded at runtime)
+data/store.json
+
+# Atomic-write temp files
+*.tmp
+
+# Built binaries
+/registry
+/registry-backend
+registry
+registry-backend
+
+# Local env
+.env

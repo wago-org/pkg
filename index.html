@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>wago plugins — registry</title>
+        <meta
+            name="description"
+            content="The wago plugin registry — host-import bundles, WASI shims, debuggers and codegen backends. Drop-in Go modules for the wago WebAssembly engine."
+        />
+
+        <link rel="canonical" href="https://pkg.wago.sh/" />
+        <meta property="og:title" content="wago plugins — registry" />
+        <meta
+            property="og:description"
+            content="Extend your runtime. One import away. Browse and publish plugins for the wago WebAssembly engine."
+        />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://pkg.wago.sh/" />
+        <meta name="theme-color" content="#1a1547" />
+
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap"
+            rel="stylesheet"
+        />
+        <link rel="stylesheet" href="assets/css/tokens.css" />
+
+        <script>
+            // Where the Go backend lives. Override here if it's not the `api.`
+            // sibling of this host. Leave it and the site still works fully in a
+            // local-only demo mode (sign-in/stars/reviews faked in the browser).
+            window.WAGO_CONFIG = {
+                // apiBase: "https://api.pkg.wago.sh",
+            };
+        </script>
+    </head>
+    <body>
+        <div id="app"></div>
+        <noscript>
+            <div style="max-width: 640px; margin: 80px auto; padding: 0 24px; text-align: center; color: #b3a6e0">
+                <h1 style="color: #f3effd">wago plugins</h1>
+                <p>
+                    This registry is an interactive app and needs JavaScript. Browse the
+                    packages directly on
+                    <a href="https://github.com/wago-org" style="color: #c3a8ff">GitHub</a>.
+                </p>
+            </div>
+        </noscript>
+        <script type="module" src="assets/js/main.js"></script>
+    </body>
+</html>

@@ -1,0 +1,435 @@
+package store
+
+import (
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"os"
+	"sort"
+	"sync"
+	"time"
+
+	"github.com/wago-org/registry-backend/internal/model"
+)
+
+// doc is the single on-disk JSON document.
+type doc struct {
+	Users    map[string]model.User        `json:"users"`
+	Packages map[string]model.Package     `json:"packages"` // keyed by short
+	Stars    map[string][]string          `json:"stars"`    // short -> userIDs
+	Reviews  map[string]model.Review      `json:"reviews"`  // reviewID -> review
+	Votes    map[string]map[string]string `json:"votes"`    // reviewID -> userID -> "up"|"down"
+	Comments map[string]model.Comment     `json:"comments"` // commentID -> comment
+	Installs map[string]map[string]int    `json:"installs"` // short -> YYYY-MM-DD -> count
+}
+
+// JSONStore is a Store backed by a single JSON file, guarded by an RWMutex and
+// persisted atomically (temp file + rename) on every mutation.
+type JSONStore struct {
+	mu   sync.RWMutex
+	path string
+	doc  doc
+}
+
+// compile-time assertion that JSONStore satisfies Store.
+var _ Store = (*JSONStore)(nil)
+
+// Open reads the store from path, creating an empty document if it is missing.
+func Open(path string) (*JSONStore, error) {
+	s := &JSONStore{path: path, doc: emptyDoc()}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			if err := s.persistLocked(); err != nil {
+				return nil, err
+			}
+			return s, nil
+		}
+		return nil, err
+	}
+	if len(data) > 0 {
+		if err := json.Unmarshal(data, &s.doc); err != nil {
+			return nil, err
+		}
+	}
+	s.normalize()
+	return s, nil
+}
+
+func emptyDoc() doc {
+	return doc{
+		Users:    map[string]model.User{},
+		Packages: map[string]model.Package{},
+		Stars:    map[string][]string{},
+		Reviews:  map[string]model.Review{},
+		Votes:    map[string]map[string]string{},
+		Comments: map[string]model.Comment{},
+		Installs: map[string]map[string]int{},
+	}
+}
+
+// normalize guards against nil maps after unmarshalling a partial document.
+func (s *JSONStore) normalize() {
+	if s.doc.Users == nil {
+		s.doc.Users = map[string]model.User{}
+	}
+	if s.doc.Packages == nil {
+		s.doc.Packages = map[string]model.Package{}
+	}
+	if s.doc.Stars == nil {
+		s.doc.Stars = map[string][]string{}
+	}
+	if s.doc.Reviews == nil {
+		s.doc.Reviews = map[string]model.Review{}
+	}
+	if s.doc.Votes == nil {
+		s.doc.Votes = map[string]map[string]string{}
+	}
+	if s.doc.Comments == nil {
+		s.doc.Comments = map[string]model.Comment{}
+	}
+	if s.doc.Installs == nil {
+		s.doc.Installs = map[string]map[string]int{}
+	}
+}
+
+// persistLocked atomically writes the document. Callers must hold the write lock.
+func (s *JSONStore) persistLocked() error {
+	data, err := json.MarshalIndent(s.doc, "", "  ")
+	if err != nil {
+		return err
+	}
+	tmp := s.path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, s.path)
+}
+
+// newID returns a random 16-byte hex id.
+func newID() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// nowRFC3339 is the current time formatted for stored timestamps.
+func nowRFC3339() string { return time.Now().UTC().Format(time.RFC3339) }
+
+// --- Packages ---
+
+// ListPackages returns all packages, ordered by short id for stable output.
+func (s *JSONStore) ListPackages() []model.Package {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]model.Package, 0, len(s.doc.Packages))
+	for _, p := range s.doc.Packages {
+		out = append(out, p)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Short < out[j].Short })
+	return out
+}
+
+// GetPackage matches by short id first, then by full module name.
+func (s *JSONStore) GetPackage(id string) (model.Package, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if p, ok := s.doc.Packages[id]; ok {
+		return p, true
+	}
+	for _, p := range s.doc.Packages {
+		if p.Name == id {
+			return p, true
+		}
+	}
+	return model.Package{}, false
+}
+
+// UpsertPackage inserts or replaces a package keyed by its short id.
+func (s *JSONStore) UpsertPackage(p model.Package) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.doc.Packages[p.Short] = p
+	return s.persistLocked()
+}
+
+// PackageCount returns the number of stored packages.
+func (s *JSONStore) PackageCount() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.doc.Packages)
+}
+
+// --- Users ---
+
+func (s *JSONStore) GetUser(id string) (model.User, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	u, ok := s.doc.Users[id]
+	return u, ok
+}
+
+func (s *JSONStore) GetUserByLogin(login string) (model.User, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, u := range s.doc.Users {
+		if u.Login == login {
+			return u, true
+		}
+	}
+	return model.User{}, false
+}
+
+func (s *JSONStore) UpsertUser(u model.User) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.doc.Users[u.ID] = u
+	return s.persistLocked()
+}
+
+// --- Stars ---
+
+func (s *JSONStore) StarCount(short string) int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.doc.Stars[short])
+}
+
+func (s *JSONStore) StarCounts() map[string]int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make(map[string]int, len(s.doc.Stars))
+	for k, v := range s.doc.Stars {
+		out[k] = len(v)
+	}
+	return out
+}
+
+func (s *JSONStore) IsStarred(short, userID string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, id := range s.doc.Stars[short] {
+		if id == userID {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *JSONStore) SetStar(short, userID string, starred bool) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cur := s.doc.Stars[short]
+	idx := -1
+	for i, id := range cur {
+		if id == userID {
+			idx = i
+			break
+		}
+	}
+	if starred && idx == -1 {
+		cur = append(cur, userID)
+	} else if !starred && idx != -1 {
+		cur = append(cur[:idx], cur[idx+1:]...)
+	}
+	if len(cur) == 0 {
+		delete(s.doc.Stars, short)
+	} else {
+		s.doc.Stars[short] = cur
+	}
+	return len(s.doc.Stars[short]), s.persistLocked()
+}
+
+// --- Reviews ---
+
+func (s *JSONStore) ReviewsForPackage(short string) []model.Review {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []model.Review
+	for _, rv := range s.doc.Reviews {
+		if rv.PackageShort == short {
+			out = append(out, rv)
+		}
+	}
+	return out
+}
+
+// UpsertReview creates or replaces the caller's single review for a package.
+func (s *JSONStore) UpsertReview(short, userID string, rating int, body string) (model.Review, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rev := model.Review{PackageShort: short, UserID: userID, Rating: rating, Body: body}
+	for id, existing := range s.doc.Reviews {
+		if existing.PackageShort == short && existing.UserID == userID {
+			rev.ID = id
+			rev.CreatedAt = existing.CreatedAt
+			break
+		}
+	}
+	if rev.ID == "" {
+		rev.ID = newID()
+		rev.CreatedAt = nowRFC3339()
+	}
+	s.doc.Reviews[rev.ID] = rev
+	return rev, s.persistLocked()
+}
+
+func (s *JSONStore) GetReview(id string) (model.Review, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	rv, ok := s.doc.Reviews[id]
+	return rv, ok
+}
+
+// --- Votes ---
+
+func (s *JSONStore) tallyLocked(reviewID string) (up, down int) {
+	for _, dir := range s.doc.Votes[reviewID] {
+		switch dir {
+		case "up":
+			up++
+		case "down":
+			down++
+		}
+	}
+	return up, down
+}
+
+func (s *JSONStore) VoteTally(reviewID string) (up, down int) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.tallyLocked(reviewID)
+}
+
+// SetVote sets, clears (dir==""), or replaces a user's vote and returns the new
+// tally.
+func (s *JSONStore) SetVote(reviewID, userID, dir string) (up, down int, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.doc.Votes[reviewID] == nil {
+		s.doc.Votes[reviewID] = map[string]string{}
+	}
+	if dir == "" {
+		delete(s.doc.Votes[reviewID], userID)
+	} else {
+		s.doc.Votes[reviewID][userID] = dir
+	}
+	if len(s.doc.Votes[reviewID]) == 0 {
+		delete(s.doc.Votes, reviewID)
+	}
+	up, down = s.tallyLocked(reviewID)
+	return up, down, s.persistLocked()
+}
+
+// MyVote returns the caller's vote direction on a review, or nil.
+func (s *JSONStore) MyVote(reviewID, userID string) *string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if userID == "" {
+		return nil
+	}
+	if dir, ok := s.doc.Votes[reviewID][userID]; ok {
+		d := dir
+		return &d
+	}
+	return nil
+}
+
+// --- Comments ---
+
+func (s *JSONStore) CommentsForPackage(short string) []model.Comment {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []model.Comment
+	for _, c := range s.doc.Comments {
+		if c.PackageShort == short {
+			out = append(out, c)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt < out[j].CreatedAt })
+	return out
+}
+
+func (s *JSONStore) AddComment(short, userID, body, parentID string) (model.Comment, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c := model.Comment{
+		ID:           newID(),
+		PackageShort: short,
+		UserID:       userID,
+		Body:         body,
+		CreatedAt:    nowRFC3339(),
+		ParentID:     parentID,
+	}
+	s.doc.Comments[c.ID] = c
+	return c, s.persistLocked()
+}
+
+func (s *JSONStore) GetComment(id string) (model.Comment, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	c, ok := s.doc.Comments[id]
+	return c, ok
+}
+
+func (s *JSONStore) DeleteComment(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.doc.Comments, id)
+	return s.persistLocked()
+}
+
+// --- Installs ---
+
+func (s *JSONStore) RecordInstall(short, date string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.doc.Installs[short] == nil {
+		s.doc.Installs[short] = map[string]int{}
+	}
+	s.doc.Installs[short][date]++
+	return s.persistLocked()
+}
+
+// InstallSeries returns the last sinceDays daily buckets, oldest first, filling
+// missing days with zero.
+func (s *JSONStore) InstallSeries(short string, sinceDays int) []InstallPoint {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if sinceDays <= 0 {
+		sinceDays = 90
+	}
+	now := time.Now().UTC()
+	out := make([]InstallPoint, 0, sinceDays)
+	days := s.doc.Installs[short]
+	for d := sinceDays - 1; d >= 0; d-- {
+		date := now.AddDate(0, 0, -d).Format("2006-01-02")
+		out = append(out, InstallPoint{Date: date, Count: days[date]})
+	}
+	return out
+}
+
+func (s *JSONStore) InstallTotal(short string) int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	total := 0
+	for _, n := range s.doc.Installs[short] {
+		total += n
+	}
+	return total
+}
+
+// InstallWeek returns the sum of installs over the last 7 days (today inclusive).
+func (s *JSONStore) InstallWeek(short string) int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	now := time.Now().UTC()
+	days := s.doc.Installs[short]
+	week := 0
+	for d := 0; d < 7; d++ {
+		date := now.AddDate(0, 0, -d).Format("2006-01-02")
+		week += days[date]
+	}
+	return week
+}

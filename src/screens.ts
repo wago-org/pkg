@@ -1,0 +1,1194 @@
+// Pure render functions: state in, HTML string out. Interactive elements carry
+// data-act (+ optional data-arg) attributes that the event layer in app.ts
+// dispatches on. Visual styling is inline, kept faithful to the DC design.
+
+import type { AppState } from "./state.js";
+import type {
+    Comment,
+    Compatibility,
+    Extension,
+    Issue,
+    Package,
+    Review,
+    Stability,
+    VersionRow,
+} from "./types.js";
+import { compactNum, esc, escAttr, relativeDate, shortHash, sparkline, starStr, tier } from "./util.js";
+
+const C = {
+    bg: "#1a1547",
+    deep: "#161043",
+    panel: "#221c52",
+    panel2: "#25205a",
+    line: "#2c2566",
+    line2: "#443a8c",
+    text: "#f3effd",
+    dim: "#b9add9",
+    soft: "#b3a6e0",
+    muted: "#7d72b0",
+    faint: "#6f64a8",
+    lilac: "#c3a8ff",
+    green: "#74e0ad",
+    pink: "#ff9ec4",
+    violet: "#5a3ff0",
+};
+
+// stability → accent colour trio (text, bg, border)
+const STABILITY: Record<Stability, { color: string; bg: string; border: string }> = {
+    stable: { color: "#74e0ad", bg: "#16322c", border: "#2e5a48" },
+    experimental: { color: "#c3a8ff", bg: "#221c52", border: "#443a8c" },
+    deprecated: { color: "#ffb4d2", bg: "#3a1f34", border: "#6b3453" },
+};
+
+function relative(iso: string): string {
+    return iso ? relativeDate(iso) : "—";
+}
+
+// ── shell: nav + footer ──────────────────────────────────────────────────────
+
+export function nav(s: AppState): string {
+    const homeColor = s.screen === "home" ? C.text : C.dim;
+    const right = s.user ? profileMenu(s) : signInButton();
+    return `
+<nav style="position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:20px;padding:14px 0;background:rgba(26,21,71,0.9);backdrop-filter:blur(12px);border-bottom:1px solid ${C.line}">
+  <a href="#/" data-act="home" style="display:flex;align-items:center;gap:11px;text-decoration:none;flex-shrink:0">
+    <span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:11px;background:${C.violet};color:#fff;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:19px;font-style:italic">w</span>
+    <span style="font-weight:800;font-size:20px;letter-spacing:-0.5px">wago</span>
+    <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.lilac};border:1px solid ${C.line2};padding:3px 10px;border-radius:100px;margin-left:2px">plugins</span>
+  </a>
+  <div style="flex:1;display:flex;align-items:center;gap:10px;background:${C.deep};border:1px solid ${C.line};border-radius:10px;padding:9px 14px;max-width:560px">
+    <span style="color:${C.muted};font-size:15px">⌕</span>
+    <input value="${escAttr(s.query)}" data-act="query" data-enter="search" placeholder="Search packages…" style="flex:1;background:transparent;border:none;outline:none;color:${C.text};font-size:14.5px" />
+    <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:${C.muted};border:1px solid ${C.line};padding:2px 7px;border-radius:5px">↵</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:14px;flex-shrink:0">
+    <a href="#/" data-act="home" style="text-decoration:none;font-size:14px;font-weight:600;color:${homeColor}">Browse</a>
+    <a href="https://github.com/wago-org/wago" target="_blank" rel="noopener" style="text-decoration:none;padding:9px 16px;border-radius:9px;background:${C.lilac};color:${C.bg};font-weight:700;font-size:14px">Publish ↗</a>
+    ${right}
+  </div>
+</nav>`;
+}
+
+function signInButton(): string {
+    return `<a href="#/auth" data-act="auth" style="text-decoration:none;padding:8px 15px;border-radius:9px;border:1px solid ${C.line2};color:${C.text};font-weight:600;font-size:14px">Sign in</a>`;
+}
+
+function avatarSpan(
+    name: string,
+    initial: string,
+    bg: string,
+    avatarUrl: string | undefined,
+    size: number,
+    font: number,
+): string {
+    if (avatarUrl)
+        return `<img src="${escAttr(avatarUrl)}" alt="${escAttr(name)}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;flex-shrink:0" />`;
+    return `<span title="${escAttr(name)}" style="width:${size}px;height:${size}px;border-radius:50%;background:${bg};display:inline-flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:${font}px;color:${C.bg};flex-shrink:0">${esc(initial)}</span>`;
+}
+
+function profileMenu(s: AppState): string {
+    const u = s.user!;
+    const menuItems = [
+        { label: "Your profile", icon: "◉", tab: "profile" },
+        { label: "Your plugins", icon: "▤", tab: "plugins" },
+        { label: "Settings", icon: "⚙", tab: "settings" },
+    ]
+        .map(
+            (m) => `
+        <a href="#/account" data-act="acct" data-arg="${m.tab}" style="display:flex;align-items:center;gap:11px;text-decoration:none;padding:9px 10px;border-radius:8px;font-size:13.5px;font-weight:600;color:#d8cef5">
+          <span style="width:18px;text-align:center;color:${C.lilac}">${m.icon}</span> ${m.label}
+        </a>`,
+        )
+        .join("");
+    const dropdown = s.menuOpen
+        ? `
+    <div style="position:absolute;top:48px;right:0;width:236px;background:${C.panel};border:1px solid ${C.line};border-radius:14px;padding:8px;box-shadow:0 22px 44px -18px rgba(0,0,0,.7);z-index:80">
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 10px 12px;border-bottom:1px solid ${C.line};margin-bottom:6px">
+        ${avatarSpan(u.name, u.initial, u.bg, u.avatarUrl, 38, 15)}
+        <div style="min-width:0">
+          <div style="font-size:14px;font-weight:700;color:${C.text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(u.name)}</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.muted}">@${esc(u.login)}</div>
+        </div>
+      </div>
+      ${menuItems}
+      <div style="height:1px;background:${C.line};margin:6px 4px"></div>
+      <a href="#/" data-act="signout" style="display:flex;align-items:center;gap:11px;text-decoration:none;padding:9px 10px;border-radius:8px;font-size:13.5px;font-weight:600;color:${C.pink}">
+        <span style="width:18px;text-align:center">⇥</span> Sign out
+      </a>
+    </div>`
+        : "";
+    return `
+    <div data-profile-menu style="position:relative">
+      <button data-act="menu-toggle" style="display:flex;align-items:center;gap:8px;background:transparent;border:1px solid ${C.line};border-radius:100px;padding:4px 11px 4px 4px;cursor:pointer">
+        ${avatarSpan(u.name, u.initial, u.bg, u.avatarUrl, 28, 12)}
+        <span style="font-size:13.5px;font-weight:600;color:${C.text}">${esc(u.login)}</span>
+        <span style="color:${C.muted};font-size:10px">▾</span>
+      </button>
+      ${dropdown}
+    </div>`;
+}
+
+export function footer(s: AppState): string {
+    const total = s.registry?.stats?.[0]?.value ?? "1,240";
+    return `
+<footer style="border-top:1px solid ${C.line};margin-top:20px">
+  <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:20px;padding:28px 0">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:11px;background:${C.violet};color:#fff;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:18px;font-style:italic">w</span>
+      <span style="font-size:13px;color:${C.muted}">wago plugins · ${esc(total)} packages · Apache 2.0</span>
+    </div>
+    <div style="display:flex;gap:22px;font-size:14px;font-weight:600;color:${C.lilac}">
+      <a href="https://github.com/wago-org/wago" target="_blank" rel="noopener" style="text-decoration:none">GitHub</a>
+      <a href="#/" data-act="home" style="text-decoration:none">Browse</a>
+    </div>
+  </div>
+</footer>`;
+}
+
+function tagPills(tags: string[]): string {
+    return tags
+        .map(
+            (t) =>
+                `<span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:${C.lilac};background:${C.deep};border:1px solid ${C.line};padding:3px 8px;border-radius:6px">${esc(t)}</span>`,
+        )
+        .join("");
+}
+
+function stabilityPill(st: Stability): string {
+    const s = STABILITY[st] || STABILITY.stable;
+    return `<span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:${s.color};background:${s.bg};border:1px solid ${s.border};padding:4px 10px;border-radius:100px">${esc(st)}</span>`;
+}
+
+// ── home ─────────────────────────────────────────────────────────────────────
+
+export function homeScreen(s: AppState): string {
+    const reg = s.registry!;
+    const stats = reg.stats
+        .map(
+            (st) => `
+      <div style="background:${C.panel};border:1px solid ${C.line};border-radius:14px;padding:22px 24px;text-align:center">
+        <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:34px;color:${C.lilac};line-height:1">${esc(st.value)}</div>
+        <div style="font-size:13.5px;color:${C.muted};margin-top:6px">${esc(st.label)}</div>
+      </div>`,
+        )
+        .join("");
+    const cats = reg.categories
+        .map(
+            (c) =>
+                `<button data-act="cat" data-arg="${escAttr(c.key)}" style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#b9add9;background:${C.panel};border:1px solid ${C.line};padding:7px 14px;border-radius:100px;cursor:pointer">${esc(c.label)}</button>`,
+        )
+        .join("");
+    const featured = reg.packages.slice(0, 6).map((p) => featuredCard(p)).join("");
+    const recent = [...reg.packages]
+        .sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""))
+        .slice(0, 5)
+        .map((p) => recentRow(p))
+        .join("");
+    const totalLabel = reg.stats[0]?.value ?? "1,240";
+
+    return `
+<div>
+  <section style="text-align:center;padding:72px 0 40px">
+    <div style="display:inline-flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:12px;color:${C.lilac};background:${C.panel};border:1px solid ${C.line};padding:6px 14px;border-radius:100px;margin-bottom:24px">✦ the wago plugin registry</div>
+    <h1 style="font-weight:900;font-size:clamp(36px,5.5vw,58px);line-height:1.02;letter-spacing:-2px;margin:0 0 16px">Extend your runtime.<br><span style="color:${C.lilac}">One import away.</span></h1>
+    <p style="font-size:18px;line-height:1.6;color:${C.soft};margin:0 auto 34px;max-width:560px">Host-import bundles, WASI shims, debuggers and codegen backends — drop-in Go modules for the wago engine.</p>
+    <div style="display:flex;align-items:center;gap:11px;background:${C.deep};border:1px solid ${C.line};border-radius:14px;padding:14px 18px;max-width:600px;margin:0 auto 18px">
+      <span style="color:${C.muted};font-size:20px">⌕</span>
+      <input value="${escAttr(s.query)}" data-act="query" data-enter="search" placeholder="Search ${esc(totalLabel)} plugins…" style="flex:1;background:transparent;border:none;outline:none;color:${C.text};font-size:17px" />
+      <button data-act="search" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${C.bg};background:${C.lilac};border:none;padding:9px 18px;border-radius:9px;cursor:pointer">Search</button>
+    </div>
+    <div style="display:flex;justify-content:center;gap:9px;flex-wrap:wrap">${cats}</div>
+  </section>
+
+  <section style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:16px 0 56px">${stats}</section>
+
+  <section style="margin-bottom:52px">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:18px">
+      <h2 style="font-weight:800;font-size:24px;letter-spacing:-0.6px;margin:0">Featured plugins</h2>
+      <a href="#/search" data-act="search" style="text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:${C.lilac}">browse all →</a>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;margin:-6px 0 16px;font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted};flex-wrap:wrap">
+      <span>star colour = popularity:</span>
+      <span style="display:flex;align-items:center;gap:5px"><span style="color:#8d7fc7">★</span>rising</span>
+      <span style="display:flex;align-items:center;gap:5px"><span style="color:${C.lilac}">★</span>popular</span>
+      <span style="display:flex;align-items:center;gap:5px"><span style="color:${C.green}">★</span>top-rated</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">${featured}</div>
+  </section>
+
+  <section style="margin-bottom:72px">
+    <h2 style="font-weight:800;font-size:24px;letter-spacing:-0.6px;margin:0 0 18px">Recently updated</h2>
+    <div style="display:flex;flex-direction:column;gap:1px;border:1px solid ${C.line};border-radius:14px;overflow:hidden">${recent}</div>
+  </section>
+</div>`;
+}
+
+function featuredCard(p: Package): string {
+    const verified = p.verified ? `<span title="verified" style="color:${C.green};font-size:13px">✦</span>` : "";
+    return `
+        <a href="#/p/${escAttr(p.short)}" data-act="open" data-arg="${escAttr(p.short)}" style="text-decoration:none;display:flex;flex-direction:column;background:${C.panel};border:1px solid ${C.line};border-radius:16px;padding:20px 22px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">
+            <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15.5px;color:${C.text}">${esc(p.short)}</span>
+            ${verified}
+          </div>
+          <p style="font-size:13.5px;line-height:1.5;color:${C.soft};margin:0 0 16px;flex:1">${esc(p.description)}</p>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">${tagPills(p.tags)}</div>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px">
+            <span style="font-size:12.5px;letter-spacing:1px;color:${tier(p.score)}">${starStr(p.rating)}</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.dim}">${p.rating}</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:${C.muted}">(${p.ratingCount})</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.muted};border-top:1px solid ${C.line};padding-top:12px">
+            <span>↓ ${esc(p.installsWeekLabel)}/wk</span>
+            <span style="color:${C.dim}">${esc(p.version)}</span>
+          </div>
+        </a>`;
+}
+
+function recentRow(p: Package): string {
+    const verified = p.verified ? `<span style="color:${C.green};font-size:12px">✦</span>` : "";
+    return `
+        <a href="#/p/${escAttr(p.short)}" data-act="open" data-arg="${escAttr(p.short)}" style="text-decoration:none;display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center;padding:16px 22px;background:${C.panel};border-top:1px solid ${C.line}">
+          <div style="min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
+              <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14.5px;color:${C.text}">${esc(p.short)}</span>
+              ${verified}
+              <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted}">${esc(p.version)}</span>
+            </div>
+            <p style="font-size:13px;color:${C.soft};margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.description)}</p>
+          </div>
+          <div style="text-align:right;white-space:nowrap">
+            <div style="font-size:12px;letter-spacing:1px;color:${tier(p.score)}">${starStr(p.rating)}</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted};margin-top:3px">${esc(relative(p.updatedAt))}</div>
+          </div>
+        </a>`;
+}
+
+// ── search ───────────────────────────────────────────────────────────────────
+
+export function searchScreen(s: AppState): string {
+    const reg = s.registry!;
+    const results = filterPackages(s);
+    const filterCats = reg.categories
+        .map((f) => {
+            const on = !!s.cats[f.key];
+            return `
+          <label style="display:flex;align-items:center;gap:9px;font-size:13.5px;color:${C.soft};cursor:pointer">
+            <span data-act="filter-cat" data-arg="${escAttr(f.key)}" style="width:15px;height:15px;border-radius:4px;border:1px solid ${on ? C.lilac : C.line2};background:${on ? C.lilac : "transparent"};display:inline-flex;align-items:center;justify-content:center;color:${C.bg};font-size:10px;flex-shrink:0">${on ? "✓" : ""}</span>
+            <span style="flex:1" data-act="filter-cat" data-arg="${escAttr(f.key)}">${esc(f.label)}</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted}">${f.count}</span>
+          </label>`;
+        })
+        .join("");
+    const sorts = (["popular", "quality", "recent"] as const)
+        .map((k) => {
+            const on = s.sort === k;
+            return `<button data-act="sort" data-arg="${k}" style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;color:${on ? C.bg : C.dim};background:${on ? C.lilac : "transparent"};border:none;padding:6px 12px;border-radius:6px;cursor:pointer">${k}</button>`;
+        })
+        .join("");
+    const rows = results.map((p) => searchRow(p)).join("");
+    const shown = s.query || "all packages";
+
+    return `
+<div style="display:grid;grid-template-columns:220px 1fr;gap:32px;padding:32px 0 72px;align-items:start">
+  <aside style="position:sticky;top:78px;display:flex;flex-direction:column;gap:26px">
+    <div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;color:${C.muted};text-transform:uppercase;margin-bottom:12px">Category</div>
+      <div style="display:flex;flex-direction:column;gap:9px">${filterCats}</div>
+    </div>
+    <div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;color:${C.muted};text-transform:uppercase;margin-bottom:12px">Options</div>
+      <label data-act="toggle-verified" style="display:flex;align-items:center;gap:9px;font-size:13.5px;color:${C.soft};cursor:pointer">
+        <span style="width:32px;height:18px;border-radius:100px;background:${s.verified ? C.green : C.line};position:relative;flex-shrink:0;transition:background .2s"><span style="position:absolute;top:2px;left:${s.verified ? "16px" : "2px"};width:14px;height:14px;border-radius:50%;background:#fff;transition:left .2s"></span></span>
+        Verified only
+      </label>
+    </div>
+    <div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;color:${C.muted};text-transform:uppercase;margin-bottom:12px">License</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:13.5px;color:${C.soft}">
+        <span>Apache-2.0</span><span>MIT</span><span>BSD-3-Clause</span>
+      </div>
+    </div>
+  </aside>
+
+  <div style="min-width:0">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px">
+      <div style="font-size:15px;color:${C.soft}">${results.length} result${results.length === 1 ? "" : "s"} for <span style="color:${C.text};font-weight:700">"${esc(shown)}"</span></div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:${C.muted}">sort</span>
+        <div style="display:flex;gap:2px;background:${C.deep};border:1px solid ${C.line};border-radius:9px;padding:3px">${sorts}</div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">${rows || emptyState()}</div>
+  </div>
+</div>`;
+}
+
+function emptyState(): string {
+    return `<div style="background:${C.panel};border:1px solid ${C.line};border-radius:14px;padding:40px;text-align:center;color:${C.muted};font-size:14px">No plugins match those filters.</div>`;
+}
+
+function searchRow(p: Package): string {
+    const verified = p.verified
+        ? `<span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:${C.bg};background:${C.green};padding:2px 8px;border-radius:100px">✦ verified</span>`
+        : "";
+    return `
+        <a href="#/p/${escAttr(p.short)}" data-act="open" data-arg="${escAttr(p.short)}" style="text-decoration:none;display:block;background:${C.panel};border:1px solid ${C.line};border-radius:14px;padding:20px 22px">
+          <div style="display:flex;align-items:center;gap:9px;margin-bottom:7px;flex-wrap:wrap">
+            <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:16px;color:${C.lilac}">${esc(p.short)}</span>
+            ${verified}
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.muted}">${esc(p.version)}</span>
+          </div>
+          <p style="font-size:14px;line-height:1.55;color:${C.soft};margin:0 0 13px">${esc(p.description)}</p>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:13px">${tagPills(p.tags)}</div>
+          <div style="display:flex;align-items:center;gap:20px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.muted};flex-wrap:wrap">
+            <span style="display:flex;align-items:center;gap:6px"><span style="font-size:12.5px;letter-spacing:1px;color:${tier(p.score)}">${starStr(p.rating)}</span><span style="color:${C.dim}">${p.rating} · ${p.ratingCount}</span></span>
+            <span>↓ ${esc(p.installsWeekLabel)}/wk</span>
+            <span>updated ${esc(relative(p.updatedAt))}</span>
+            <span style="display:flex;align-items:center;gap:7px">score <span style="width:64px;height:5px;background:${C.deep};border-radius:3px;overflow:hidden"><span style="display:block;height:100%;width:${p.score}%;background:linear-gradient(90deg,${C.violet},${C.green})"></span></span> <span style="color:${C.dim}">${p.score}</span></span>
+          </div>
+        </a>`;
+}
+
+export function filterPackages(s: AppState): Package[] {
+    const reg = s.registry!;
+    const q = s.query.trim().toLowerCase();
+    const activeCats = Object.keys(s.cats).filter((k) => s.cats[k]);
+    let list = reg.packages.filter((p) => {
+        if (s.verified && !p.verified) return false;
+        if (activeCats.length && !activeCats.includes(p.category)) return false;
+        if (q) {
+            const hay = `${p.short} ${p.name} ${p.description} ${p.tags.join(" ")} ${(p.keywords || []).join(" ")}`.toLowerCase();
+            if (!hay.includes(q)) return false;
+        }
+        return true;
+    });
+    list = [...list];
+    if (s.sort === "popular") list.sort((a, b) => b.installsWeek - a.installsWeek);
+    else if (s.sort === "quality") list.sort((a, b) => b.rating - a.rating || b.score - a.score);
+    else if (s.sort === "recent") list.sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
+    return list;
+}
+
+// ── package ──────────────────────────────────────────────────────────────────
+
+export function packageScreen(s: AppState): string {
+    const p = s.pkg!;
+    const keywords = (p.keywords || p.tags)
+        .map(
+            (k) =>
+                `<span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.lilac};background:${C.panel};border:1px solid ${C.line};padding:4px 10px;border-radius:100px">${esc(k)}</span>`,
+        )
+        .join("");
+
+    const openIssueCount = (p.issues || []).filter((i) => i.state === "open").length;
+    const tabs = [
+        { k: "readme", l: "Readme" },
+        { k: "reviews", l: `Reviews · ${s.reviewsSummary.count || p.ratingCount}` },
+        { k: "comments", l: `Comments · ${s.comments.length}` },
+        { k: "issues", l: `Issues · ${openIssueCount}` },
+        { k: "versions", l: `Versions · ${p.versions.length}` },
+    ]
+        .map((t) => {
+            const on = s.pkgTab === t.k;
+            return `<span data-act="tab" data-arg="${t.k}" style="font-size:14px;font-weight:${on ? "700" : "500"};color:${on ? C.text : C.muted};padding-bottom:12px;border-bottom:${on ? `2px solid ${C.lilac}` : "2px solid transparent"};margin-bottom:-1px;cursor:pointer">${esc(t.l)}</span>`;
+        })
+        .join("");
+
+    const badges = `${p.verified ? `<span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${C.bg};background:${C.green};padding:5px 11px;border-radius:100px;margin-top:8px">✦ verified</span>` : ""}<span style="margin-top:8px">${stabilityPill(p.stability)}</span><span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:${C.lilac};border:1px solid ${C.line2};padding:5px 11px;border-radius:100px;margin-top:8px">${esc(p.version)}</span>`;
+
+    const starBtnBg = s.starred ? C.panel : "transparent";
+    const starBtnBorder = s.starred ? C.lilac : C.line2;
+    const starIconColor = s.starred ? C.lilac : C.muted;
+    const starLabel = s.starred ? "Starred" : "Star";
+
+    return `
+<div style="padding:28px 0 72px">
+  <div style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:${C.muted};margin-bottom:16px"><a href="#/" data-act="home" style="text-decoration:none;color:${C.muted}">plugins</a> <span style="color:${C.line2}">/</span> <a href="#/search" data-act="cat" data-arg="${escAttr(p.category)}" style="text-decoration:none;color:${C.muted}">${esc(p.category)}</a> <span style="color:${C.line2}">/</span> <span style="color:${C.lilac}">${esc(p.short)}</span></div>
+
+  <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:10px">
+    <h1 style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:clamp(24px,3.4vw,34px);letter-spacing:-1px;margin:0;word-break:break-all">${esc(p.name)}</h1>
+    ${badges}
+  </div>
+  <p style="font-size:17px;line-height:1.6;color:${C.soft};margin:0 0 16px;max-width:680px">${esc(p.description)}</p>
+  <div style="display:flex;align-items:center;gap:10px;margin:0 0 14px;flex-wrap:wrap">
+    <button data-act="star" style="display:inline-flex;align-items:center;gap:9px;font-family:'Outfit',sans-serif;font-weight:700;font-size:14px;color:${C.text};background:${starBtnBg};border:1px solid ${starBtnBorder};padding:9px 16px;border-radius:9px;cursor:pointer;transition:all .15s">
+      <span style="font-size:15px;color:${starIconColor}">★</span> ${starLabel}
+      <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;background:${C.deep};padding:2px 9px;border-radius:6px;margin-left:2px">${s.starCount.toLocaleString()}</span>
+    </button>
+    <button data-act="tab" data-arg="issues" style="display:inline-flex;align-items:center;gap:9px;font-family:'Outfit',sans-serif;font-weight:700;font-size:14px;color:${C.text};background:transparent;border:1px solid ${C.line2};padding:9px 16px;border-radius:9px;cursor:pointer">
+      <span style="color:${C.green}">◉</span> Issues
+      <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;background:${C.deep};padding:2px 9px;border-radius:6px;margin-left:2px">${openIssueCount}</span>
+    </button>
+    <span style="width:1px;height:22px;background:${C.line}"></span>
+    <span style="display:flex;align-items:center;gap:9px">
+      <span style="font-size:18px;letter-spacing:2px;color:${tier(p.score)}">${starStr(p.rating)}</span>
+      <span style="font-weight:800;font-size:16px;color:${C.text}">${p.rating}</span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:${C.muted}">${p.ratingCount}</span>
+    </span>
+  </div>
+  ${enginePills(p)}
+  ${capabilityPills(p)}
+  <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:28px">${keywords}</div>
+
+  <div style="display:grid;grid-template-columns:1fr 300px;gap:36px;align-items:start">
+    <main style="min-width:0">
+      <div style="display:flex;gap:24px;border-bottom:1px solid ${C.line};margin-bottom:28px;flex-wrap:wrap">${tabs}</div>
+      ${pkgTabBody(s)}
+    </main>
+    ${pkgSidebar(s)}
+  </div>
+</div>`;
+}
+
+function enginePills(p: Package): string {
+    const engines = p.compatibility?.engines || {};
+    const order = ["wago", "tinygo", "go"];
+    const keys = Object.keys(engines).sort((a, b) => order.indexOf(a) - order.indexOf(b));
+    if (!keys.length && !(p.compatibility?.platforms || []).length) return "";
+    const pills = keys
+        .map((k) => {
+            const known = k === "tinygo";
+            const color = known ? C.pink : C.green;
+            const bg = known ? "#3a1f34" : "#16322c";
+            const border = known ? "#6b3453" : "#2e5a48";
+            const dot = known ? "#ff9ec4" : C.green;
+            const val = engines[k] === "*" ? "any" : engines[k];
+            return `<span style="display:inline-flex;align-items:center;gap:7px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${color};background:${bg};border:1px solid ${border};padding:5px 11px;border-radius:100px"><span style="width:7px;height:7px;border-radius:50%;background:${dot}"></span> ${esc(k)} ${esc(val)}</span>`;
+        })
+        .join("");
+    const platforms = (p.compatibility?.platforms || [])
+        .map(
+            (pf) =>
+                `<span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.dim};background:${C.panel};border:1px solid ${C.line};padding:5px 10px;border-radius:100px">${esc(pf)}</span>`,
+        )
+        .join("");
+    const platformsBlock = platforms
+        ? `<span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted}">·</span>${platforms}`
+        : `<span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.muted}">· platform-independent</span>`;
+    return `<div style="display:flex;align-items:center;gap:9px;margin:0 0 14px;flex-wrap:wrap"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted}">engines</span>${pills}${platformsBlock}</div>`;
+}
+
+function capabilityPills(p: Package): string {
+    if (!p.capabilities?.length) return "";
+    const pills = p.capabilities
+        .map(
+            (c) =>
+                `<span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.pink};background:#2a1230;border:1px solid #6b3453;padding:4px 10px;border-radius:6px">⚑ ${esc(c)}</span>`,
+        )
+        .join("");
+    return `<div style="display:flex;align-items:center;gap:9px;margin:0 0 16px;flex-wrap:wrap"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted}">capabilities</span>${pills}</div>`;
+}
+
+function pkgTabBody(s: AppState): string {
+    switch (s.pkgTab) {
+        case "reviews":
+            return reviewsTab(s);
+        case "comments":
+            return commentsTab(s);
+        case "issues":
+            return issuesTab(s);
+        case "versions":
+            return versionsTab(s);
+        default:
+            return readmeTab(s);
+    }
+}
+
+function readmeTab(s: AppState): string {
+    const p = s.pkg!;
+    const code = `<span style="color:#6f64a8"># add the extension to your custom wago build</span>
+$ wago plugin add ${esc(p.name)}
+
+<span style="color:#6f64a8"># or in Go — register the extension on the runtime</span>
+rt := wago.<span style="color:${C.lilac}">New</span>()
+rt.<span style="color:${C.lilac}">Use</span>(${esc(p.short.replace(/[^a-z0-9]/gi, ""))}.<span style="color:${C.lilac}">Ext</span>(${esc(p.short.replace(/[^a-z0-9]/gi, ""))}.Config{}))`;
+
+    return `
+<div>
+  <h2 style="font-weight:800;font-size:24px;letter-spacing:-0.6px;margin:0 0 12px">${esc(p.short)}</h2>
+  <p style="font-size:15px;line-height:1.65;color:${C.soft};margin:0 0 20px">${esc(p.description)}</p>
+
+  <h3 style="font-weight:700;font-size:18px;margin:28px 0 12px">Usage</h3>
+  <div style="background:${C.deep};border:1px solid ${C.line};border-radius:12px;overflow:hidden">
+    <div style="padding:10px 16px;border-bottom:1px solid ${C.line};font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted}">shell / main.go</div>
+    <pre style="margin:0;padding:18px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.85;color:#e7e0ff;overflow-x:auto">${code}</pre>
+  </div>
+
+  ${extensionsBlock(p)}
+  ${compatibilityBlock(p.compatibility, p.capabilities)}
+</div>`;
+}
+
+function extensionsBlock(p: Package): string {
+    if (!p.extensions?.length) return "";
+    const rows = p.extensions
+        .map(
+            (e: Extension) => `
+      <div style="background:${C.deep};border:1px solid ${C.line};border-radius:12px;padding:16px 18px">
+        <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:6px">
+          <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px;color:${C.text}">${esc(e.id)}</span>
+          ${stabilityPill(e.stability)}
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted}">v${esc(e.version)}</span>
+        </div>
+        <p style="font-size:13.5px;line-height:1.55;color:${C.soft};margin:0 0 10px">${esc(e.description)}</p>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted};margin-bottom:8px">import <span style="color:${C.lilac}">"${esc(e.import)}"</span></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${tagPills(e.tags || [])}</div>
+      </div>`,
+        )
+        .join("");
+    return `
+  <h3 style="font-weight:700;font-size:18px;margin:30px 0 12px">Extensions <span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:${C.muted};font-weight:500">${p.extensions.length}</span></h3>
+  <p style="font-size:14px;line-height:1.6;color:${C.soft};margin:0 0 14px">This module ships the following wago extensions. Each is independently importable and version-stamped.</p>
+  <div style="display:flex;flex-direction:column;gap:12px">${rows}</div>`;
+}
+
+function compatibilityBlock(compat: Compatibility, capabilities: string[]): string {
+    const engines = compat?.engines || {};
+    const order = ["wago", "tinygo", "go"];
+    const keys = Object.keys(engines).sort((a, b) => order.indexOf(a) - order.indexOf(b));
+    const engineRows = keys
+        .map(
+            (k, i) => `
+        <div style="display:grid;grid-template-columns:120px 1fr;border-top:${i === 0 ? "none" : `1px solid ${C.line}`};align-items:center">
+          <div style="padding:11px 16px;font-family:'JetBrains Mono',monospace;font-size:13px;color:#e7e0ff">${esc(k)}</div>
+          <div style="padding:11px 16px;font-family:'JetBrains Mono',monospace;font-size:13px;color:${engines[k] === "*" ? C.green : C.dim}">${esc(engines[k] === "*" ? "any version" : engines[k])}</div>
+        </div>`,
+        )
+        .join("");
+    const platforms = (compat?.platforms || []).length
+        ? (compat.platforms || [])
+              .map(
+                  (pf) =>
+                      `<span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.dim};background:${C.panel};border:1px solid ${C.line};padding:4px 10px;border-radius:100px">${esc(pf)}</span>`,
+              )
+              .join("")
+        : `<span style="font-size:13px;color:${C.muted}">platform-independent (pure Go)</span>`;
+    const caps = capabilities?.length
+        ? capabilities
+              .map(
+                  (c) =>
+                      `<span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.pink};background:#2a1230;border:1px solid #6b3453;padding:4px 10px;border-radius:6px">⚑ ${esc(c)}</span>`,
+              )
+              .join("")
+        : `<span style="font-size:13px;color:${C.muted}">no host capabilities requested</span>`;
+
+    return `
+  <h3 style="font-weight:700;font-size:18px;margin:30px 0 12px">Compatibility</h3>
+  <p style="font-size:14px;line-height:1.6;color:${C.soft};margin:0 0 14px">Engine constraints are semver ranges the runtime checks at <code style="font-family:'JetBrains Mono',monospace;color:${C.lilac};background:${C.panel};padding:2px 6px;border-radius:5px;font-size:12px">Use</code> time. TinyGo support means the extension is built from the stack-form host-func API.</p>
+  <div style="border:1px solid ${C.line};border-radius:12px;overflow:hidden;margin-bottom:16px">
+    <div style="display:grid;grid-template-columns:120px 1fr;background:${C.deep};border-bottom:1px solid ${C.line}">
+      <div style="padding:11px 16px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.5px;color:${C.muted};text-transform:uppercase">Engine</div>
+      <div style="padding:11px 16px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.5px;color:${C.muted};text-transform:uppercase">Constraint</div>
+    </div>
+    ${engineRows || `<div style="padding:14px 16px;font-size:13px;color:${C.muted}">any engine</div>`}
+  </div>
+  <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:8px">
+    <div><div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.5px;color:${C.muted};text-transform:uppercase;margin-bottom:8px">Platforms</div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${platforms}</div></div>
+    <div><div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.5px;color:${C.muted};text-transform:uppercase;margin-bottom:8px">Capabilities</div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${caps}</div></div>
+  </div>`;
+}
+
+function reviewsTab(s: AppState): string {
+    const p = s.pkg!;
+    const activeRating = s.hoverRating || s.draftRating;
+    const composer = s.user
+        ? s.composerOpen
+            ? composerOpenBlock(s, activeRating)
+            : composerClosedBlock()
+        : signInPrompt("star this plugin or leave a review");
+    const list = s.reviewsLoading
+        ? loading("Loading reviews…")
+        : s.reviews.map((r) => reviewCard(r)).join("") || empty("No reviews yet. Be the first.");
+    return `
+<div>
+  <div style="display:flex;align-items:center;gap:22px;background:${C.panel};border:1px solid ${C.line};border-radius:14px;padding:20px 24px;margin-bottom:22px;flex-wrap:wrap">
+    <div style="text-align:center">
+      <div style="font-weight:900;font-size:42px;line-height:1;color:${C.text}">${p.rating}</div>
+      <div style="font-size:16px;letter-spacing:2px;color:${tier(p.score)};margin-top:4px">${starStr(p.rating)}</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted};margin-top:5px">${s.reviewsSummary.count || p.ratingCount} ratings</div>
+    </div>
+    <div style="flex:1;min-width:220px;font-size:14px;line-height:1.6;color:${C.soft}">Developers rate this plugin highly for reliability and documentation. Share how it worked for you.</div>
+  </div>
+  ${composer}
+  <div style="display:flex;flex-direction:column;gap:14px">${list}</div>
+</div>`;
+}
+
+function signInPrompt(what: string): string {
+    return `
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:${C.deep};border:1px solid ${C.line};border-radius:14px;padding:14px 20px;margin-bottom:24px;flex-wrap:wrap">
+    <span style="font-size:13.5px;color:${C.soft}">Sign in with GitHub to ${esc(what)}.</span>
+    <a href="#/auth" data-act="auth" style="text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:700;color:${C.lilac};background:transparent;border:1px solid ${C.line2};padding:8px 15px;border-radius:9px;white-space:nowrap">Sign in</a>
+  </div>`;
+}
+
+function loading(txt: string): string {
+    return `<div style="color:${C.muted};font-size:14px;padding:20px">${esc(txt)}</div>`;
+}
+function empty(txt: string): string {
+    return `<div style="color:${C.muted};font-size:14px;padding:20px">${esc(txt)}</div>`;
+}
+
+function composerClosedBlock(): string {
+    return `
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:${C.deep};border:1px solid ${C.line};border-radius:14px;padding:14px 20px;margin-bottom:24px;flex-wrap:wrap">
+    <span style="font-size:13.5px;color:${C.soft}">Used this plugin? A quick ★ star above helps others — or leave a full review.</span>
+    <button data-act="composer-open" style="font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:700;color:${C.lilac};background:transparent;border:1px solid ${C.line2};padding:8px 15px;border-radius:9px;cursor:pointer;white-space:nowrap">Write a review</button>
+  </div>`;
+}
+
+function composerOpenBlock(s: AppState, activeRating: number): string {
+    const stars = [1, 2, 3, 4, 5]
+        .map(
+            (n) =>
+                `<span class="pick-star" data-n="${n}" data-act="rate" data-arg="${n}" style="color:${n <= activeRating ? C.lilac : "#4b407e"};cursor:pointer">${n <= activeRating ? "★" : "☆"}</span>`,
+        )
+        .join("");
+    return `
+  <div style="background:${C.deep};border:1px solid ${C.line};border-radius:14px;padding:18px 20px;margin-bottom:24px">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;color:${C.muted};text-transform:uppercase;margin-bottom:12px">Write a review</div>
+    <div id="star-picker" style="display:flex;gap:4px;font-size:26px;margin-bottom:12px;width:max-content">${stars}</div>
+    <textarea data-act="draft" placeholder="How did it work for you?" style="width:100%;min-height:80px;background:${C.panel};border:1px solid ${C.line};border-radius:10px;padding:12px 14px;color:${C.text};font-size:14px;font-family:'Outfit',sans-serif;resize:vertical;outline:none;box-sizing:border-box">${esc(s.draftText)}</textarea>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:12px">
+      <button data-act="composer-close" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;color:${C.dim};background:transparent;border:1px solid ${C.line};padding:10px 18px;border-radius:9px;cursor:pointer">Cancel</button>
+      <button data-act="review-submit" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${C.bg};background:${C.lilac};border:none;padding:10px 20px;border-radius:9px;cursor:pointer">Post review</button>
+    </div>
+  </div>`;
+}
+
+function reviewCard(r: Review): string {
+    const v = r.myVote;
+    const upOn = v === "up";
+    const downOn = v === "down";
+    const id = escAttr(r.id || "");
+    return `
+            <div style="background:${C.panel};border:1px solid ${C.line};border-radius:14px;padding:18px 20px">
+              <div style="display:flex;align-items:center;gap:11px;margin-bottom:9px">
+                ${avatarSpan(r.author, r.initial || "?", r.bg || C.lilac, r.avatarUrl, 34, 13)}
+                <div style="flex:1;min-width:0">
+                  <div style="font-weight:700;font-size:14.5px;color:${C.text}">${esc(r.author)}${r.mine ? ` <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:${C.muted}">you</span>` : ""}</div>
+                  <div style="font-size:13px;letter-spacing:1px;color:${C.lilac}">${starStr(r.rating)}</div>
+                </div>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted}">${esc(relative(r.createdAt))}</span>
+              </div>
+              <p style="font-size:14px;line-height:1.6;color:${C.soft};margin:0 0 12px">${esc(r.body)}</p>
+              <div style="display:flex;align-items:center;gap:10px">
+                <button data-act="vote-up" data-arg="${id}" style="display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${upOn ? C.bg : C.dim};background:${upOn ? C.green : "transparent"};border:1px solid ${upOn ? C.green : C.line};padding:5px 11px;border-radius:8px;cursor:pointer">▲ ${r.score ?? 0}</button>
+                <button data-act="vote-down" data-arg="${id}" style="display:inline-flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${downOn ? C.bg : C.dim};background:${downOn ? C.pink : "transparent"};border:1px solid ${downOn ? C.pink : C.line};padding:5px 11px;border-radius:8px;cursor:pointer">▼</button>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted}">was this helpful?</span>
+              </div>
+            </div>`;
+}
+
+// ── comments ─────────────────────────────────────────────────────────────────
+
+function commentsTab(s: AppState): string {
+    const composer = s.user
+        ? `
+    <div style="background:${C.deep};border:1px solid ${C.line};border-radius:14px;padding:16px 18px;margin-bottom:22px">
+      <textarea data-act="comment-draft" placeholder="Add to the discussion…" style="width:100%;min-height:70px;background:${C.panel};border:1px solid ${C.line};border-radius:10px;padding:12px 14px;color:${C.text};font-size:14px;font-family:'Outfit',sans-serif;resize:vertical;outline:none;box-sizing:border-box">${esc(s.commentDraft)}</textarea>
+      <div style="display:flex;justify-content:flex-end;margin-top:10px">
+        <button data-act="comment-submit" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${C.bg};background:${C.lilac};border:none;padding:9px 18px;border-radius:9px;cursor:pointer">Comment</button>
+      </div>
+    </div>`
+        : signInPrompt("join the discussion");
+
+    const list = s.commentsLoading
+        ? loading("Loading comments…")
+        : commentThread(s) || empty("No comments yet — start the conversation.");
+
+    return `<div>${composer}<div style="display:flex;flex-direction:column;gap:12px">${list}</div></div>`;
+}
+
+function commentThread(s: AppState): string {
+    const tops = s.comments.filter((c) => !c.parentId);
+    return tops
+        .map((c) => {
+            const replies = s.comments.filter((r) => r.parentId === c.id);
+            return commentCard(s, c, replies);
+        })
+        .join("");
+}
+
+function commentCard(s: AppState, c: Comment, replies: Comment[]): string {
+    const replyBox =
+        s.user && s.replyTo === c.id
+            ? `
+        <div style="margin-top:12px">
+          <textarea data-act="reply-draft" placeholder="Reply…" style="width:100%;min-height:56px;background:${C.deep};border:1px solid ${C.line};border-radius:10px;padding:10px 12px;color:${C.text};font-size:13.5px;font-family:'Outfit',sans-serif;resize:vertical;outline:none;box-sizing:border-box">${esc(s.replyDraft)}</textarea>
+          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
+            <button data-act="reply-cancel" style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;color:${C.dim};background:transparent;border:1px solid ${C.line};padding:7px 14px;border-radius:8px;cursor:pointer">Cancel</button>
+            <button data-act="reply-submit" data-arg="${escAttr(c.id)}" style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${C.bg};background:${C.lilac};border:none;padding:7px 15px;border-radius:8px;cursor:pointer">Reply</button>
+          </div>
+        </div>`
+            : "";
+    const replyRows = replies
+        .map(
+            (r) => `
+        <div style="margin-top:12px;margin-left:22px;padding-left:16px;border-left:2px solid ${C.line}">${commentBody(s, r)}</div>`,
+        )
+        .join("");
+    return `
+      <div style="background:${C.panel};border:1px solid ${C.line};border-radius:14px;padding:16px 18px">
+        ${commentBody(s, c)}
+        ${replyRows}
+        ${replyBox}
+      </div>`;
+}
+
+function commentBody(s: AppState, c: Comment): string {
+    const actions = `
+      <div style="display:flex;align-items:center;gap:14px;margin-top:8px;font-family:'JetBrains Mono',monospace;font-size:11.5px">
+        ${s.user && !c.parentId ? `<button data-act="reply-open" data-arg="${escAttr(c.id)}" style="background:none;border:none;color:${C.lilac};cursor:pointer;font-family:inherit;font-size:inherit;padding:0">reply</button>` : ""}
+        ${c.mine ? `<button data-act="comment-delete" data-arg="${escAttr(c.id)}" style="background:none;border:none;color:${C.pink};cursor:pointer;font-family:inherit;font-size:inherit;padding:0">delete</button>` : ""}
+      </div>`;
+    return `
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          ${avatarSpan(c.author, c.initial || "?", c.bg || C.lilac, c.avatarUrl, 30, 12)}
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:13.5px;color:${C.text}">${esc(c.author)}${c.mine ? ` <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:${C.muted}">you</span>` : ""}</div>
+          </div>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted}">${esc(relative(c.createdAt))}</span>
+        </div>
+        <p style="font-size:13.5px;line-height:1.6;color:${C.soft};margin:0">${esc(c.body)}</p>
+        ${actions}`;
+}
+
+// ── issues ───────────────────────────────────────────────────────────────────
+
+function issuesTab(s: AppState): string {
+    const p = s.pkg!;
+    const issues = p.issues || [];
+    const openCount = issues.filter((i) => i.state === "open").length;
+    const closedCount = issues.length - openCount;
+    const view = issues.filter((i) =>
+        s.issueFilter === "open" ? i.state === "open" : i.state === "closed",
+    );
+    const filters = [
+        { k: "open", l: `Open · ${openCount}` },
+        { k: "closed", l: `Closed · ${closedCount}` },
+    ]
+        .map((f) => {
+            const on = s.issueFilter === f.k;
+            return `<button data-act="issue-filter" data-arg="${f.k}" style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${on ? C.bg : C.dim};background:${on ? C.lilac : "transparent"};border:none;padding:6px 13px;border-radius:6px;cursor:pointer">${esc(f.l)}</button>`;
+        })
+        .join("");
+    const rows =
+        view.map((it, i) => issueRow(p, it, i === 0)).join("") ||
+        `<div style="padding:20px;color:${C.muted};font-size:14px;background:${C.panel}">No ${s.issueFilter} issues.</div>`;
+    return `
+<div>
+  <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;flex-wrap:wrap">
+    <div style="display:flex;gap:2px;background:${C.deep};border:1px solid ${C.line};border-radius:9px;padding:3px">${filters}</div>
+    <a href="${escAttr(p.repository)}/issues" target="_blank" rel="noopener" style="margin-left:auto;text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${C.lilac}">new issue on GitHub ↗</a>
+  </div>
+  <div style="border:1px solid ${C.line};border-radius:14px;overflow:hidden">${rows}</div>
+</div>`;
+}
+
+const LABEL_STYLE: Record<string, { color: string; bg: string; border: string }> = {
+    tinygo: { color: "#ffb4d2", bg: "#3a1f34", border: "#6b3453" },
+    bug: { color: "#ffb4d2", bg: "#3a1f34", border: "#6b3453" },
+    enhancement: { color: "#c3a8ff", bg: "#221c52", border: "#443a8c" },
+    docs: { color: "#74e0ad", bg: "#16322c", border: "#2e5a48" },
+    "good first issue": { color: "#74e0ad", bg: "#16322c", border: "#2e5a48" },
+};
+
+function issueRow(p: Package, it: Issue, first: boolean): string {
+    const labels = it.labels
+        .map((l) => {
+            const st = LABEL_STYLE[l] || { color: C.lilac, bg: C.panel, border: C.line2 };
+            return `<span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:${st.color};background:${st.bg};border:1px solid ${st.border};padding:2px 8px;border-radius:100px">${esc(l)}</span>`;
+        })
+        .join("");
+    const open = it.state === "open";
+    return `
+            <a href="${escAttr(p.repository)}/issues/${it.num}" target="_blank" rel="noopener" style="text-decoration:none;display:grid;grid-template-columns:auto 1fr auto;gap:13px;align-items:center;padding:15px 18px;border-top:${first ? "none" : `1px solid ${C.line}`};background:${C.panel}">
+              <span style="font-size:15px;color:${open ? C.green : "#8d7fc7"};margin-top:1px">${open ? "◉" : "✓"}</span>
+              <div style="min-width:0">
+                <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:4px">
+                  <span style="font-size:14.5px;font-weight:600;color:${C.text}">${esc(it.title)}</span>
+                  ${labels}
+                </div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.muted}">#${it.num} · opened ${esc(it.age)} by ${esc(it.author)}</div>
+              </div>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:${C.muted};white-space:nowrap">${it.comments} · comments</span>
+            </a>`;
+}
+
+// ── versions ─────────────────────────────────────────────────────────────────
+
+function versionsTab(s: AppState): string {
+    const p = s.pkg!;
+    const versions = p.versions || [];
+    const rows =
+        versions.map((v, i) => versionRow(p, v, i === 0)).join("") ||
+        `<div style="padding:20px;color:${C.muted};font-size:14px;background:${C.panel}">No version history.</div>`;
+    return `<div><div style="border:1px solid ${C.line};border-radius:14px;overflow:hidden">${rows}</div></div>`;
+}
+
+function versionRow(p: Package, v: VersionRow, first: boolean): string {
+    const latest = v.latest
+        ? `<span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;font-weight:700;color:${C.bg};background:${C.green};padding:2px 7px;border-radius:100px">latest</span>`
+        : "";
+    const commit = v.commit
+        ? `<a href="${escAttr(p.repository)}/commit/${escAttr(v.commit)}" target="_blank" rel="noopener" title="${escAttr(v.commit)}" style="text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:${C.lilac};background:${C.deep};border:1px solid ${C.line};padding:2px 7px;border-radius:6px">⑂ ${esc(shortHash(v.commit))}</a>`
+        : "";
+    return `
+            <div style="display:grid;grid-template-columns:150px 1fr;gap:16px;padding:18px 20px;border-top:${first ? "none" : `1px solid ${C.line}`};background:${C.panel}">
+              <div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap">
+                  <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;color:${C.text}">${esc(v.version)}</span>
+                  ${latest}
+                </div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted};margin-bottom:7px">${esc(relative(v.publishedAt))}</div>
+                ${commit}
+              </div>
+              <div style="min-width:0">
+                <p style="font-size:13.5px;line-height:1.55;color:${C.soft};margin:0 0 10px">${esc(v.notes)}</p>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="flex:1;max-width:180px;height:5px;background:${C.deep};border-radius:3px;overflow:hidden"><span style="display:block;height:100%;width:${v.installShare}%;background:linear-gradient(90deg,${C.violet},${C.lilac})"></span></span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted}">${v.installShare}% of installs</span>
+                </div>
+              </div>
+            </div>`;
+}
+
+// ── sidebar ──────────────────────────────────────────────────────────────────
+
+function pkgSidebar(s: AppState): string {
+    const p = s.pkg!;
+    const counts = s.installSeries.map((pt) => pt.count);
+    const max = Math.max(1, ...counts);
+    const norm = counts.length
+        ? counts.map((c) => (c / max) * 100)
+        : [40, 52, 38, 60, 55, 72, 64, 80, 70, 88, 76, 95];
+    const spark = sparkline(norm);
+    const installCmd = `wago plugin add ${p.name}`;
+
+    const meta: [string, string][] = [
+        ["Latest", p.version],
+        ["License", p.license || "—"],
+        ["Last publish", relative(p.updatedAt)],
+        ["Unpacked size", p.unpackedKB ? `${p.unpackedKB} kB` : "—"],
+        ["Stability", p.stability],
+        ["Module", p.name],
+    ];
+    const metaRows = meta
+        .map(
+            ([label, value], i) => `
+        <div style="padding:15px 0;border-top:${i === 0 ? "none" : `1px solid ${C.line}`}">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;color:${C.muted};text-transform:uppercase;margin-bottom:6px">${esc(label)}</div>
+          <div style="font-size:${label === "Module" ? "12.5px" : "14.5px"};color:${C.text};font-weight:600;word-break:break-all;font-family:${label === "Module" ? "'JetBrains Mono',monospace" : "inherit"}">${esc(value)}</div>
+        </div>`,
+        )
+        .join("");
+
+    const authors = (p.authors || [])
+        .map((a) => avatarSpan(a.name, (a.name || "?")[0].toUpperCase(), avatarBgFor(a.github || a.name), undefined, 34, 13))
+        .join("");
+    const contributors = (p.contributors || [])
+        .map(
+            (login) =>
+                `<a href="https://github.com/${escAttr(login)}" target="_blank" rel="noopener" title="${escAttr(login)}" style="text-decoration:none">${avatarSpan(login, login[0].toUpperCase(), avatarBgFor(login), undefined, 30, 11)}</a>`,
+        )
+        .join("");
+    const openIssueCount = (p.issues || []).filter((i) => i.state === "open").length;
+    const weekLabel = compactNum(s.installSeries.slice(-7).reduce((a, b) => a + b.count, 0) || p.installsWeek);
+
+    return `
+    <aside style="display:flex;flex-direction:column;gap:0;background:${C.panel};border:1px solid ${C.line};border-radius:16px;padding:4px 22px 8px">
+      <div style="padding:16px 0 4px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;color:${C.muted};text-transform:uppercase;margin-bottom:9px">Install</div>
+        <div style="background:${C.deep};border:1px solid ${C.line};border-radius:10px;display:flex;align-items:center;gap:8px;padding:10px 12px">
+          <span style="flex:1;min-width:0;font-family:'JetBrains Mono',monospace;font-size:12px;color:#e7e0ff;overflow-x:auto;white-space:nowrap"><span style="color:#6f64a8">$</span> ${esc(installCmd)}</span>
+          <button data-copy="${escAttr(installCmd)}" data-act="copy-install" style="flex-shrink:0;font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.dim};background:transparent;border:1px solid ${C.line};padding:4px 10px;border-radius:6px;cursor:pointer"><span data-copy-label>copy</span></button>
+        </div>
+      </div>
+      <div style="padding:15px 0;border-top:1px solid ${C.line}">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:9px">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;color:${C.muted};text-transform:uppercase">Weekly installs</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${C.lilac}">${esc(weekLabel)}</div>
+        </div>
+        <div style="height:44px">
+          <svg viewBox="0 0 100 40" preserveAspectRatio="none" style="width:100%;height:100%;overflow:visible">
+            <defs><linearGradient id="sparkfill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${C.lilac}" stop-opacity="0.35"></stop><stop offset="1" stop-color="${C.lilac}" stop-opacity="0"></stop></linearGradient></defs>
+            <path d="${spark.area}" fill="url(#sparkfill)"></path>
+            <polyline points="${spark.points}" fill="none" stroke="${C.lilac}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></polyline>
+            <circle cx="${spark.endX}" cy="${spark.endY}" r="2.6" fill="${C.green}"></circle>
+          </svg>
+        </div>
+      </div>
+      ${metaRows}
+      <div style="padding:15px 0;border-top:1px solid ${C.line}">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;color:${C.muted};text-transform:uppercase;margin-bottom:10px">Authors</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">${authors || `<span style="font-size:13px;color:${C.muted}">—</span>`}</div>
+      </div>
+      ${
+          contributors
+              ? `<div style="padding:15px 0;border-top:1px solid ${C.line}">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;color:${C.muted};text-transform:uppercase;margin-bottom:10px">Contributors</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">${contributors}</div>
+      </div>`
+              : ""
+      }
+      <div style="padding:15px 0;border-top:1px solid ${C.line}">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;color:${C.muted};text-transform:uppercase;margin-bottom:10px">GitHub</div>
+        <div style="display:flex;gap:8px">
+          <div style="flex:1;background:${C.deep};border:1px solid ${C.line};border-radius:9px;padding:9px 6px;text-align:center">
+            <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;color:${C.text}">${s.starCount.toLocaleString()}</div>
+            <div style="font-size:10.5px;color:${C.muted};margin-top:2px">★ stars</div>
+          </div>
+          <div style="flex:1;background:${C.deep};border:1px solid ${C.line};border-radius:9px;padding:9px 6px;text-align:center">
+            <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;color:${C.green}">${openIssueCount}</div>
+            <div style="font-size:10.5px;color:${C.muted};margin-top:2px">◉ issues</div>
+          </div>
+          <div style="flex:1;background:${C.deep};border:1px solid ${C.line};border-radius:9px;padding:9px 6px;text-align:center">
+            <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;color:${C.text}">${p.forks ?? 0}</div>
+            <div style="font-size:10.5px;color:${C.muted};margin-top:2px">⑂ forks</div>
+          </div>
+        </div>
+      </div>
+      <a href="${escAttr(p.repository)}" target="_blank" rel="noopener" style="text-decoration:none;text-align:center;margin-top:14px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${C.bg};background:${C.lilac};padding:11px;border-radius:10px">Repository ↗</a>
+    </aside>`;
+}
+
+function avatarBgFor(seed: string): string {
+    const palette = ["#c3a8ff", "#74e0ad", "#ff9ec4", "#8d7fc7", "#7bd0ff"];
+    let h = 0;
+    for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
+    return palette[Math.abs(h) % palette.length];
+}
+
+// ── auth ─────────────────────────────────────────────────────────────────────
+
+export function authScreen(s: AppState): string {
+    const err = s.authError
+        ? `<div style="background:#3a1f34;border:1px solid #6b3453;border-radius:11px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:#ffb4d2">${esc(s.authError)}</div>`
+        : "";
+    return `
+<div style="display:flex;justify-content:center;padding:72px 0 90px">
+  <div style="width:100%;max-width:410px">
+    <div style="text-align:center;margin-bottom:26px">
+      <span style="display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:15px;background:${C.violet};color:#fff;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:29px;font-style:italic;margin-bottom:16px">w</span>
+      <h1 style="font-weight:800;font-size:26px;letter-spacing:-0.8px;margin:0 0 6px">Sign in to wago</h1>
+      <p style="font-size:14.5px;line-height:1.55;color:${C.muted};margin:0">Use your GitHub account to star, review and publish plugins — no separate password to manage.</p>
+    </div>
+    ${err}
+    <div style="background:${C.panel};border:1px solid ${C.line};border-radius:18px;padding:30px 26px">
+      <button data-act="signin" style="width:100%;display:flex;align-items:center;justify-content:center;gap:11px;background:${C.deep};border:1px solid ${C.line2};border-radius:11px;padding:15px;font-family:'Outfit',sans-serif;font-weight:700;font-size:15px;color:${C.text};cursor:pointer">
+        ${githubIcon(19)}
+        Continue with GitHub
+      </button>
+      <div style="display:flex;gap:10px;align-items:flex-start;margin-top:18px">
+        <span style="color:${C.green};font-size:14px;margin-top:1px;flex-shrink:0">✦</span>
+        <p style="font-size:12.5px;line-height:1.55;color:${C.muted};margin:0">We only read your public profile and email. wago never sees your password or private repositories.</p>
+      </div>
+    </div>
+    <p style="font-size:11.5px;line-height:1.55;color:${C.faint};text-align:center;margin:18px 0 0">By continuing you agree to the Terms of Service and Privacy Policy.</p>
+    <div style="text-align:center;margin-top:14px">
+      <a href="#/" data-act="home" style="text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:${C.muted}">← back to browse</a>
+    </div>
+  </div>
+</div>`;
+}
+
+function githubIcon(size: number): string {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${C.text}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.5"></circle><circle cx="6" cy="18" r="2.5"></circle><circle cx="18" cy="9" r="2.5"></circle><path d="M18 11.5v.5a3 3 0 0 1-3 3H8.5"></path><path d="M6 8.5v7"></path></svg>`;
+}
+
+// ── account ──────────────────────────────────────────────────────────────────
+
+export function accountScreen(s: AppState): string {
+    const u = s.user!;
+    const nav = [
+        { k: "profile", l: "Profile", icon: "◉" },
+        { k: "plugins", l: "Your plugins", icon: "▤" },
+        { k: "settings", l: "Settings", icon: "⚙" },
+    ]
+        .map((n) => {
+            const on = s.acctTab === n.k;
+            return `<a href="#/account" data-act="acct-tab" data-arg="${n.k}" style="display:flex;align-items:center;gap:11px;text-decoration:none;padding:11px 14px;border-radius:10px;font-size:14px;font-weight:600;color:${on ? C.text : C.soft};background:${on ? C.panel : "transparent"}"><span style="width:18px;text-align:center;color:${on ? C.lilac : C.muted}">${n.icon}</span> ${n.l}</a>`;
+        })
+        .join("");
+    let body = "";
+    if (s.acctTab === "plugins") body = acctPlugins(s);
+    else if (s.acctTab === "settings") body = acctSettings(s);
+    else body = acctProfile(s);
+
+    return `
+<div style="padding:32px 0 72px">
+  <div style="display:grid;grid-template-columns:230px 1fr;gap:32px;align-items:start">
+    <aside style="position:sticky;top:78px;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:12px;background:${C.panel};border:1px solid ${C.line};border-radius:14px;padding:15px">
+        ${avatarSpan(u.name, u.initial, u.bg, u.avatarUrl, 44, 17)}
+        <div style="min-width:0">
+          <div style="font-size:15px;font-weight:700;color:${C.text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(u.name)}</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.muted}">@${esc(u.login)}</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px">${nav}</div>
+    </aside>
+    <div style="min-width:0">${body}</div>
+  </div>
+</div>`;
+}
+
+function ownedPlugins(s: AppState): (Package & { role: string })[] {
+    const reg = s.registry;
+    const u = s.user;
+    if (!reg || !u) return [];
+    return reg.packages
+        .filter((p) => p.ownerLogin === u.login || (p.contributors || []).includes(u.login))
+        .map((p) => Object.assign({}, p, { role: p.ownerLogin === u.login ? "owner" : "maintainer" }));
+}
+
+const ROLE_STYLE: Record<string, { color: string; bg: string; border: string }> = {
+    owner: { color: "#1a1547", bg: "#74e0ad", border: "#74e0ad" },
+    maintainer: { color: "#c3a8ff", bg: "#221c52", border: "#443a8c" },
+};
+
+function acctProfile(s: AppState): string {
+    const u = s.user!;
+    const owned = ownedPlugins(s);
+    const rows =
+        owned
+            .map((p, i) => {
+                const rs = ROLE_STYLE[p.role];
+                return `
+            <a href="#/p/${escAttr(p.short)}" data-act="open" data-arg="${escAttr(p.short)}" style="text-decoration:none;display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;padding:15px 18px;border-top:${i === 0 ? "none" : `1px solid ${C.line}`};background:${C.panel}">
+              <div style="min-width:0">
+                <div style="display:flex;align-items:center;gap:9px;margin-bottom:3px;flex-wrap:wrap">
+                  <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14.5px;color:${C.lilac}">${esc(p.short)}</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted}">${esc(p.version)}</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:${rs.color};background:${rs.bg};border:1px solid ${rs.border};padding:2px 8px;border-radius:100px">${p.role}</span>
+                </div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.muted}">↓ ${esc(p.installsWeekLabel)}/wk · ★ ${p.stars.toLocaleString()}</div>
+              </div>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted};white-space:nowrap">updated ${esc(relative(p.updatedAt))}</span>
+            </a>`;
+            })
+            .join("") || `<div style="padding:18px;color:${C.muted};font-size:13.5px;background:${C.panel}">You haven't published any plugins yet.</div>`;
+    const bio = s.bioDraft != null ? s.bioDraft : u.bio || "";
+    return `
+      <div>
+        <div style="display:flex;align-items:flex-start;gap:20px;background:${C.panel};border:1px solid ${C.line};border-radius:18px;padding:26px;margin-bottom:18px;flex-wrap:wrap">
+          ${avatarSpan(u.name, u.initial, u.bg, u.avatarUrl, 76, 30)}
+          <div style="flex:1;min-width:200px">
+            <h1 style="font-weight:800;font-size:26px;letter-spacing:-0.6px;margin:0 0 3px">${esc(u.name)}</h1>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:13px;color:${C.lilac};margin-bottom:12px">@${esc(u.login)}</div>
+            <p style="font-size:14.5px;line-height:1.6;color:${C.soft};margin:0 0 12px;max-width:520px">${esc(bio)}</p>
+            <div style="display:flex;gap:18px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;font-size:12px;color:${C.muted}">
+              <span>⎇ github.com/${esc(u.login)}</span>
+            </div>
+          </div>
+          <a href="#/account" data-act="acct-tab" data-arg="settings" style="text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${C.text};border:1px solid ${C.line2};padding:9px 15px;border-radius:9px">Edit profile</a>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:26px">
+          <div style="background:${C.panel};border:1px solid ${C.line};border-radius:14px;padding:18px 20px;text-align:center"><div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:28px;color:${C.lilac};line-height:1">${owned.length}</div><div style="font-size:12.5px;color:${C.muted};margin-top:5px">plugins published</div></div>
+          <div style="background:${C.panel};border:1px solid ${C.line};border-radius:14px;padding:18px 20px;text-align:center"><div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:28px;color:${C.green};line-height:1">42</div><div style="font-size:12.5px;color:${C.muted};margin-top:5px">★ stars given</div></div>
+          <div style="background:${C.panel};border:1px solid ${C.line};border-radius:14px;padding:18px 20px;text-align:center"><div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:28px;color:${C.pink};line-height:1">${compactNum(owned.reduce((a, b) => a + b.installsWeek, 0))}</div><div style="font-size:12.5px;color:${C.muted};margin-top:5px">installs / week</div></div>
+        </div>
+
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px">
+          <h2 style="font-weight:800;font-size:20px;letter-spacing:-0.5px;margin:0">Your plugins</h2>
+          <a href="#/account" data-act="acct-tab" data-arg="plugins" style="text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:${C.lilac}">manage all →</a>
+        </div>
+        <div style="border:1px solid ${C.line};border-radius:14px;overflow:hidden">${rows}</div>
+      </div>`;
+}
+
+function acctPlugins(s: AppState): string {
+    const owned = ownedPlugins(s);
+    const rows =
+        owned
+            .map((p, i) => {
+                const rs = ROLE_STYLE[p.role];
+                return `
+            <div style="display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center;padding:18px 20px;border-top:${i === 0 ? "none" : `1px solid ${C.line}`};background:${C.panel}">
+              <div style="min-width:0">
+                <div style="display:flex;align-items:center;gap:9px;margin-bottom:4px;flex-wrap:wrap">
+                  <a href="#/p/${escAttr(p.short)}" data-act="open" data-arg="${escAttr(p.short)}" style="text-decoration:none;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;color:${C.lilac}">${esc(p.short)}</a>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted}">${esc(p.version)}</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:${rs.color};background:${rs.bg};border:1px solid ${rs.border};padding:2px 8px;border-radius:100px">${p.role}</span>
+                </div>
+                <p style="font-size:13px;color:${C.soft};margin:0 0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.description)}</p>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.muted}">↓ ${esc(p.installsWeekLabel)}/wk · ★ ${p.stars.toLocaleString()} · updated ${esc(relative(p.updatedAt))}</div>
+              </div>
+              <div style="display:flex;gap:8px">
+                <a href="${escAttr(p.repository)}" target="_blank" rel="noopener" style="text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${C.text};background:transparent;border:1px solid ${C.line2};padding:8px 13px;border-radius:8px">Manage</a>
+              </div>
+            </div>`;
+            })
+            .join("") || `<div style="padding:18px;color:${C.muted};font-size:13.5px;background:${C.panel}">Nothing published yet. Run <span style="font-family:'JetBrains Mono',monospace;color:${C.lilac}">wago plugin publish</span> in your module.</div>`;
+    return `
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px">
+          <h1 style="font-weight:800;font-size:24px;letter-spacing:-0.6px;margin:0">Your plugins <span style="font-family:'JetBrains Mono',monospace;font-size:15px;color:${C.muted};font-weight:500">${owned.length}</span></h1>
+          <a href="https://github.com/wago-org/wago" target="_blank" rel="noopener" style="text-decoration:none;font-size:13px;font-weight:700;color:${C.bg};background:${C.lilac};padding:9px 16px;border-radius:9px">Publish a plugin ↗</a>
+        </div>
+        <div style="border:1px solid ${C.line};border-radius:14px;overflow:hidden">${rows}</div>
+      </div>`;
+}
+
+function acctSettings(s: AppState): string {
+    const u = s.user!;
+    const bio = s.bioDraft != null ? s.bioDraft : u.bio || "";
+    const toggles = [
+        { k: "releases", l: "New releases from plugins you use" },
+        { k: "security", l: "Security advisories" },
+        { k: "digest", l: "Weekly digest" },
+    ]
+        .map((t, i) => {
+            const on = s.settings[t.k as keyof AppState["settings"]];
+            return `
+            <label data-act="setting" data-arg="${t.k}" style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 0;border-top:${i === 0 ? "none" : `1px solid ${C.line}`};cursor:pointer">
+              <span style="font-size:14px;color:#d8cef5">${esc(t.l)}</span>
+              <span style="width:34px;height:19px;border-radius:100px;background:${on ? C.green : C.line};position:relative;flex-shrink:0;transition:background .2s"><span style="position:absolute;top:2px;left:${on ? "17px" : "2px"};width:15px;height:15px;border-radius:50%;background:#fff;transition:left .2s"></span></span>
+            </label>`;
+        })
+        .join("");
+    return `
+      <div style="display:flex;flex-direction:column;gap:18px">
+        <h1 style="font-weight:800;font-size:24px;letter-spacing:-0.6px;margin:0">Settings</h1>
+
+        <div style="background:${C.panel};border:1px solid ${C.line};border-radius:16px;padding:22px 24px">
+          <div style="font-weight:700;font-size:16px;margin-bottom:16px">Public profile</div>
+          <div style="margin-bottom:14px">
+            <label style="display:block;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.5px;color:${C.muted};text-transform:uppercase;margin-bottom:7px">Display name</label>
+            <input value="${escAttr(u.name)}" style="width:100%;background:${C.deep};border:1px solid ${C.line};border-radius:10px;padding:12px 14px;color:${C.text};font-size:14.5px;outline:none;box-sizing:border-box" />
+          </div>
+          <div>
+            <label style="display:block;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.5px;color:${C.muted};text-transform:uppercase;margin-bottom:7px">Bio</label>
+            <textarea data-act="bio" style="width:100%;min-height:70px;background:${C.deep};border:1px solid ${C.line};border-radius:10px;padding:12px 14px;color:${C.text};font-size:14px;font-family:'Outfit',sans-serif;resize:vertical;outline:none;box-sizing:border-box">${esc(bio)}</textarea>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-top:16px"><button data-act="save-profile" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${C.bg};background:${C.lilac};border:none;padding:10px 18px;border-radius:9px;cursor:pointer">Save changes</button></div>
+        </div>
+
+        <div style="background:${C.panel};border:1px solid ${C.line};border-radius:16px;padding:22px 24px">
+          <div style="font-weight:700;font-size:16px;margin-bottom:16px">Connected account</div>
+          <div style="display:flex;align-items:center;gap:13px;background:${C.deep};border:1px solid ${C.line};border-radius:12px;padding:14px 16px;margin-bottom:14px">
+            ${githubIcon(20)}
+            <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700;color:${C.text}">GitHub</div><div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.muted}">@${esc(u.login)} · your only sign-in method</div></div>
+            <span style="display:inline-flex;align-items:center;gap:7px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${C.green}"><span style="width:7px;height:7px;border-radius:50%;background:${C.green}"></span> Connected</span>
+          </div>
+          <label style="display:block;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.5px;color:${C.muted};text-transform:uppercase;margin-bottom:7px">Primary email (from GitHub)</label>
+          <input value="${escAttr(u.email || "")}" readonly style="width:100%;background:${C.deep};border:1px solid ${C.line};border-radius:10px;padding:12px 14px;color:${C.muted};font-size:14.5px;outline:none;box-sizing:border-box" />
+        </div>
+
+        <div style="background:${C.panel};border:1px solid ${C.line};border-radius:16px;padding:22px 24px">
+          <div style="font-weight:700;font-size:16px;margin-bottom:6px">Notifications</div>
+          ${toggles}
+        </div>
+
+        <div style="background:#2a1230;border:1px solid #6b3453;border-radius:16px;padding:22px 24px">
+          <div style="font-weight:700;font-size:16px;color:#ffb4d2;margin-bottom:14px">Danger zone</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
+            <div style="min-width:200px"><div style="font-size:14px;font-weight:600;color:${C.text};margin-bottom:2px">Delete account</div><div style="font-size:12.5px;color:#b78ba3">Permanently removes your account and unpublishes your plugins.</div></div>
+            <button data-act="signout" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#ffb4d2;background:transparent;border:1px solid #6b3453;padding:10px 16px;border-radius:9px;cursor:pointer">Delete account</button>
+          </div>
+        </div>
+      </div>`;
+}

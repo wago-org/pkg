@@ -1,0 +1,8 @@
+node_modules/
+assets/js/
+dist/
+.DS_Store
+*.log
+
+# stray build caches
+.vitepress/

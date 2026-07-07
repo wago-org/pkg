@@ -1,0 +1,93 @@
+/* Base + design tokens for the wago plugins registry. The screens render with
+   inline styles (ported from the design), so this file only owns the document
+   shell: fonts, background, scrollbars, selection. Dark-only by design. */
+
+:root {
+    color-scheme: dark;
+
+    /* Surfaces */
+    --bg: #1a1547;
+    --bg-deep: #161043;
+    --panel: #221c52;
+    --panel-2: #25205a;
+    --line: #2c2566;
+    --line-2: #443a8c;
+
+    /* Text */
+    --text: #f3effd;
+    --dim: #b9add9;
+    --soft: #b3a6e0;
+    --muted: #7d72b0;
+    --faint: #6f64a8;
+
+    /* Accents */
+    --lilac: #c3a8ff;
+    --green: #74e0ad;
+    --pink: #ff9ec4;
+    --violet: #5a3ff0;
+    --ink: #1a1547;
+
+    --sans: "Outfit", system-ui, -apple-system, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+    background: var(--lilac);
+    color: var(--ink);
+}
+
+a {
+    color: inherit;
+}
+
+input,
+textarea,
+button {
+    font-family: inherit;
+}
+
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--line);
+    border-radius: 10px;
+}
+
+/* The app renders into a centered column, matching the design container. */
+#app {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 24px;
+    min-height: 100vh;
+}
+
+/* Subtle hover affordances the inline styles don't cover. */
+[data-act="open"]:hover,
+[data-act="cat"]:hover {
+    border-color: var(--line-2);
+}
+
+button {
+    transition:
+        border-color 0.15s ease,
+        background 0.15s ease;
+}
