@@ -213,6 +213,7 @@ function demoUser(): User {
         name: u?.name || "Jordan Reyes",
         email: "jordan@users.noreply.github.com",
         bio: "Systems engineer working on WASM tooling. Maintainer of a handful of wago subpackages.",
+        createdAt: "2024-02-11T00:00:00Z",
     });
 }
 

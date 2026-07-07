@@ -174,6 +174,7 @@ export interface User {
     following?: number;
     publicRepos?: number;
     hireable?: boolean;
+    createdAt?: string; // when they joined wago (RFC3339), for membership duration
     emails?: UserEmail[];
     // Whether the user granted the public_repo scope, letting the registry star
     // repos on their behalf. Derived server-side; never the raw token.

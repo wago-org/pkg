@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/wago-org/registry-backend/internal/auth"
 	"github.com/wago-org/registry-backend/internal/httpx"
@@ -61,6 +62,11 @@ func (a *App) handleCallback(w http.ResponseWriter, r *http.Request) {
 	// record so re-auth never wipes a verified secondary email.
 	if existing, ok := a.Store.GetUser(u.ID); ok {
 		u = mergeAddedEmails(u, existing)
+		u.CreatedAt = existing.CreatedAt // preserve original wago join date
+	}
+	// Stamp the wago membership date on first sign-in.
+	if u.CreatedAt == "" {
+		u.CreatedAt = time.Now().UTC().Format(time.RFC3339)
 	}
 	// sanitize clears server-only fields; set the fresh GitHub token/scopes after
 	// it so they persist (and are only ever exposed via derived flags, not raw).

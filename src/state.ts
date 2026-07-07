@@ -72,8 +72,6 @@ export interface AppState {
     emailMsg: string | null;
 
     authError: string | null;
-    // Auth screen: opt into the star permission (public_repo) at sign-in time.
-    authStarOptIn: boolean;
 }
 
 export const state: AppState = {
@@ -128,7 +126,6 @@ export const state: AppState = {
     emailMsg: null,
 
     authError: null,
-    authStarOptIn: false,
 };
 
 // Look up a package by its short slug (wasi-fs) or full module path.

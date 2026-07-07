@@ -65,6 +65,7 @@ export function normalizeUser(raw: Partial<User> & { login: string }): User {
         following: raw.following,
         publicRepos: raw.publicRepos,
         hireable: raw.hireable,
+        createdAt: raw.createdAt,
         emails: raw.emails,
         canStar: raw.canStar,
         initial: initialOf(name),
@@ -105,6 +106,24 @@ export function relativeDate(iso: string): string {
         if (n >= 1) return `${n} ${name}${n === 1 ? "" : "s"} ago`;
     }
     return "just now";
+}
+
+// Human "how long they've been a member" from an ISO join date, e.g.
+// "3 years", "5 months", "12 days", "today". Returns "" for a bad/empty date.
+export function memberFor(iso: string): string {
+    const then = Date.parse(iso);
+    if (Number.isNaN(then)) return "";
+    const secs = Math.max(0, Math.floor((Date.now() - then) / 1000));
+    const units: [number, string][] = [
+        [31536000, "year"],
+        [2592000, "month"],
+        [86400, "day"],
+    ];
+    for (const [size, name] of units) {
+        const n = Math.floor(secs / size);
+        if (n >= 1) return `${n} ${name}${n === 1 ? "" : "s"}`;
+    }
+    return "today";
 }
 
 // Build an SVG sparkline (points + filled area) from a weekly series, matching

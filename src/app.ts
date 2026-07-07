@@ -327,7 +327,7 @@ async function doSignIn(): Promise<void> {
     const host = location.hostname;
     const isLocalhost = host === "localhost" || host === "127.0.0.1";
     if (backendMode() === "remote" || !isLocalhost) {
-        window.location.href = api.signInUrl(location.href, state.authStarOptIn);
+        window.location.href = api.signInUrl(location.href);
         return;
     }
     state.user = await api.localSignIn();
@@ -692,10 +692,6 @@ function dispatch(act: string, arg: string | null, el: HTMLElement): void {
             break;
         case "star-dontask":
             state.starPromptDontAsk = !state.starPromptDontAsk;
-            render();
-            break;
-        case "auth-star-optin":
-            state.authStarOptIn = !state.authStarOptIn;
             render();
             break;
         case "bookmark":

@@ -14,7 +14,7 @@ import type {
     UserEmail,
     VersionRow,
 } from "./types.js";
-import { compactNum, esc, escAttr, relativeDate, shortHash, sparkline, starStr, tier } from "./util.js";
+import { compactNum, esc, escAttr, memberFor, relativeDate, shortHash, sparkline, starStr, tier } from "./util.js";
 import { mdBlock } from "./markdown.js";
 import { avatarFor } from "./github.js";
 
@@ -1108,13 +1108,9 @@ export function authScreen(s: AppState): string {
         ${githubIcon(19)}
         Continue with GitHub
       </button>
-      <label data-act="auth-star-optin" style="display:flex;gap:10px;align-items:flex-start;margin-top:16px;cursor:pointer">
-        <span style="width:17px;height:17px;border-radius:5px;border:1px solid ${s.authStarOptIn ? C.lilac : C.line2};background:${s.authStarOptIn ? C.lilac : "transparent"};display:inline-flex;align-items:center;justify-content:center;color:${C.bg};font-size:11px;flex-shrink:0;margin-top:1px">${s.authStarOptIn ? "✓" : ""}</span>
-        <span style="font-size:12.5px;line-height:1.55;color:${C.soft}">Also let wago <b style="color:${C.lilac};font-weight:700">★ star repositories</b> on my behalf, so starring a package here stars the real repo on GitHub. You can change this later.</span>
-      </label>
-      <div style="display:flex;gap:10px;align-items:flex-start;margin-top:16px">
+      <div style="display:flex;gap:10px;align-items:flex-start;margin-top:18px">
         <span style="color:${C.green};font-size:14px;margin-top:1px;flex-shrink:0">✦</span>
-        <p style="font-size:12.5px;line-height:1.55;color:${C.muted};margin:0">We only read your public profile and email${s.authStarOptIn ? ", plus permission to star public repos" : ""}. wago never sees your password or private repositories.</p>
+        <p style="font-size:12.5px;line-height:1.55;color:${C.muted};margin:0">We only read your public profile and email. wago never sees your password or private repositories.</p>
       </div>
     </div>
     <p style="font-size:11.5px;line-height:1.55;color:${C.faint};text-align:center;margin:18px 0 0">By continuing you agree to the Terms of Service and Privacy Policy.</p>
@@ -1221,7 +1217,8 @@ function acctProfile(s: AppState): string {
               ${u.location ? `<span>📍 ${esc(u.location)}</span>` : ""}
               ${u.blog ? `<a href="${escAttr(profileHref(u.blog))}" target="_blank" rel="noopener" style="color:${C.lilac};text-decoration:none">🔗 ${esc(u.blog)}</a>` : ""}
               ${u.twitterUsername ? `<a href="https://twitter.com/${escAttr(u.twitterUsername)}" target="_blank" rel="noopener" style="color:${C.lilac};text-decoration:none">@${esc(u.twitterUsername)}</a>` : ""}
-              ${u.githubCreatedAt ? `<span>🗓 Joined ${esc(joinedLabel(u.githubCreatedAt))}</span>` : ""}
+              ${u.createdAt && memberFor(u.createdAt) ? `<span title="Joined wago ${esc(joinedLabel(u.createdAt))}">🎂 wago member for ${esc(memberFor(u.createdAt))}</span>` : ""}
+              ${u.githubCreatedAt ? `<span>🗓 On GitHub since ${esc(joinedLabel(u.githubCreatedAt))}</span>` : ""}
               <a href="${escAttr(u.htmlUrl || `https://github.com/${u.login}`)}" target="_blank" rel="noopener" style="color:${C.muted};text-decoration:none">⎇ github.com/${esc(u.login)}</a>
             </div>
             ${profileStats(u)}
