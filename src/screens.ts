@@ -51,7 +51,7 @@ export function nav(s: AppState): string {
     return `
 <nav style="position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:20px;padding:14px 0;background:rgba(26,21,71,0.9);backdrop-filter:blur(12px);border-bottom:1px solid ${C.line}">
   <a href="#/" data-act="home" style="display:flex;align-items:center;gap:11px;text-decoration:none;flex-shrink:0">
-    <span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:11px;background:${C.violet};color:#fff;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:19px;font-style:italic">w</span>
+    <img src="/assets/wago-logo.png" alt="wago" style="width:34px;height:34px;border-radius:9px;flex-shrink:0" />
     <span style="font-weight:800;font-size:20px;letter-spacing:-0.5px">wago</span>
     <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.lilac};border:1px solid ${C.line2};padding:3px 10px;border-radius:100px;margin-left:2px">plugins</span>
   </a>
@@ -133,7 +133,7 @@ export function footer(s: AppState): string {
 <footer style="border-top:1px solid ${C.line};margin-top:20px">
   <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:20px;padding:28px 0">
     <div style="display:flex;align-items:center;gap:12px">
-      <span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:11px;background:${C.violet};color:#fff;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:18px;font-style:italic">w</span>
+      <img src="/assets/wago-logo.png" alt="" style="width:34px;height:34px;border-radius:9px" />
       <span style="font-size:13px;color:${C.muted}">wago plugins · ${esc(total)} packages · Apache 2.0</span>
     </div>
     <div style="display:flex;gap:22px;font-size:14px;font-weight:600;color:${C.lilac}">
@@ -899,7 +899,7 @@ export function authScreen(s: AppState): string {
 <div style="display:flex;justify-content:center;padding:72px 0 90px">
   <div style="width:100%;max-width:410px">
     <div style="text-align:center;margin-bottom:26px">
-      <span style="display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:15px;background:${C.violet};color:#fff;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:29px;font-style:italic;margin-bottom:16px">w</span>
+      <img src="/assets/wago-logo.png" alt="wago" style="width:52px;height:52px;border-radius:13px;margin-bottom:16px" />
       <h1 style="font-weight:800;font-size:26px;letter-spacing:-0.8px;margin:0 0 6px">Sign in to wago</h1>
       <p style="font-size:14.5px;line-height:1.55;color:${C.muted};margin:0">Use your GitHub account to star, review and publish plugins — no separate password to manage.</p>
     </div>

@@ -1,0 +1,17 @@
+{
+    "name": "wago plugins — the wago plugin registry",
+    "short_name": "wago plugins",
+    "description": "Browse and publish plugins for the wago WebAssembly engine.",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#1a1547",
+    "theme_color": "#1a1547",
+    "icons": [
+        {
+            "src": "/assets/wago-logo.png",
+            "sizes": "2000x2000",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ]
+}
