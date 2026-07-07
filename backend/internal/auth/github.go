@@ -35,11 +35,22 @@ func NewGitHub(cfg config.Config) *GitHub {
 
 // ghUser is the subset of https://api.github.com/user we consume.
 type ghUser struct {
-	ID        int64  `json:"id"`
-	Login     string `json:"login"`
-	Name      string `json:"name"`
-	AvatarURL string `json:"avatar_url"`
-	Email     string `json:"email"`
+	ID              int64  `json:"id"`
+	Login           string `json:"login"`
+	Name            string `json:"name"`
+	AvatarURL       string `json:"avatar_url"`
+	Email           string `json:"email"`
+	Bio             string `json:"bio"`
+	Company         string `json:"company"`
+	Location        string `json:"location"`
+	Blog            string `json:"blog"`
+	TwitterUsername string `json:"twitter_username"`
+	Followers       int    `json:"followers"`
+	Following       int    `json:"following"`
+	PublicRepos     int    `json:"public_repos"`
+	CreatedAt       string `json:"created_at"`
+	HTMLURL         string `json:"html_url"`
+	Hireable        bool   `json:"hireable"`
 }
 
 // ghEmail is one entry from https://api.github.com/user/emails.
@@ -128,13 +139,29 @@ func (g *GitHub) FetchUser(token string) (model.User, error) {
 			}
 		}
 	}
-	return model.User{
-		ID:        strconv.FormatInt(gu.ID, 10),
-		Login:     gu.Login,
-		Name:      gu.Name,
-		AvatarURL: gu.AvatarURL,
-		Email:     email,
-	}, nil
+	u := model.User{
+		ID:              strconv.FormatInt(gu.ID, 10),
+		Login:           gu.Login,
+		Name:            gu.Name,
+		AvatarURL:       gu.AvatarURL,
+		Email:           email,
+		Bio:             gu.Bio,
+		Company:         gu.Company,
+		Location:        gu.Location,
+		Blog:            gu.Blog,
+		TwitterUsername: gu.TwitterUsername,
+		HTMLURL:         gu.HTMLURL,
+		GithubCreatedAt: gu.CreatedAt,
+		Followers:       gu.Followers,
+		Following:       gu.Following,
+		PublicRepos:     gu.PublicRepos,
+		Hireable:        gu.Hireable,
+	}
+	// Seed the email list with the GitHub primary as a verified "github" entry.
+	if email != "" {
+		u.Emails = []model.UserEmail{{Address: email, Verified: true, Source: "github"}}
+	}
+	return u, nil
 }
 
 // ghGetJSON performs an authenticated GET and decodes a JSON object.

@@ -54,6 +54,12 @@ func (a *App) handleCallback(w http.ResponseWriter, r *http.Request) {
 		fail("user_fetch")
 		return
 	}
+	// Sync is non-destructive: preserve any user-added emails from the stored
+	// record so re-auth never wipes a verified secondary email.
+	if existing, ok := a.Store.GetUser(u.ID); ok {
+		u = mergeAddedEmails(u, existing)
+	}
+	u = sanitize(u)
 	if err := a.Store.UpsertUser(u); err != nil {
 		log.Printf("oauth: upsert user: %v", err)
 		fail("store")
@@ -138,7 +144,8 @@ func (a *App) handleMe(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, u)
+	su := sanitize(*u)
+	httpx.WriteJSON(w, http.StatusOK, su)
 }
 
 // handleCreateToken mints an API token for the current user (for CI use). The

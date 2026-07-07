@@ -330,6 +330,60 @@ async function removeComment(id: string): Promise<void> {
     await refreshComments();
 }
 
+// ── secondary emails ─────────────────────────────────────────────────────────
+
+// Sync = re-run OAuth. GitHub silently re-authorizes an already-approved app and
+// the callback refreshes the stored profile (added emails are preserved).
+function syncFromGithub(): void {
+    window.location.href = api.signInUrl(location.href);
+}
+
+async function addEmail(): Promise<void> {
+    if (!state.user) {
+        navAuth();
+        return;
+    }
+    const email = state.emailDraft.trim();
+    if (!email) return;
+    state.emailMsg = null;
+    try {
+        const res = await api.addEmail(email);
+        state.emailDraft = "";
+        if (state.user) state.user.emails = await api.listEmails();
+        state.emailMsg = res.sent
+            ? `We emailed a 6-digit code to ${email}.`
+            : `Added ${email}. Enter the code we sent to verify.`;
+    } catch (err) {
+        state.emailMsg = `Couldn't add that email: ${String(err instanceof Error ? err.message : err)}`;
+    }
+    render();
+}
+
+async function verifyEmail(address: string): Promise<void> {
+    const code = (state.verifyDrafts[address] || "").trim();
+    if (!code) return;
+    state.emailMsg = null;
+    try {
+        if (state.user) state.user.emails = await api.verifyEmail(address, code);
+        delete state.verifyDrafts[address];
+        state.emailMsg = `${address} is verified.`;
+    } catch {
+        state.emailMsg = `That code didn't match. Check it and try again.`;
+    }
+    render();
+}
+
+async function deleteEmail(address: string): Promise<void> {
+    try {
+        if (state.user) state.user.emails = await api.deleteEmail(address);
+        delete state.verifyDrafts[address];
+        state.emailMsg = `Removed ${address}.`;
+    } catch {
+        /* ignore */
+    }
+    render();
+}
+
 function setPkgTab(tab: PkgTab): void {
     state.pkgTab = tab;
     render();
@@ -486,6 +540,18 @@ function dispatch(act: string, arg: string | null, el: HTMLElement): void {
             }
             flash(el, "Saved");
             break;
+        case "sync-github":
+            syncFromGithub();
+            break;
+        case "add-email":
+            void addEmail();
+            break;
+        case "verify-email":
+            if (arg) void verifyEmail(arg);
+            break;
+        case "delete-email":
+            if (arg) void deleteEmail(arg);
+            break;
         default:
             break;
     }
@@ -539,6 +605,11 @@ function wireEvents(): void {
         else if (act === "bio") state.bioDraft = value;
         else if (act === "comment-draft") state.commentDraft = value;
         else if (act === "reply-draft") state.replyDraft = value;
+        else if (act === "email-draft") state.emailDraft = value;
+        else if (act === "email-code") {
+            const addr = el.getAttribute("data-arg");
+            if (addr) state.verifyDrafts[addr] = value;
+        }
     });
 
     app.addEventListener("keydown", (e) => {

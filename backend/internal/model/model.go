@@ -90,14 +90,44 @@ type Issue struct {
 	Author   string   `json:"author"`
 }
 
+// UserEmail is an email address associated with a user: either the GitHub
+// primary (Source "github") or a user-added secondary (Source "added") that must
+// be verified with an emailed 6-digit code. Code/CodeExpiry are persisted (so a
+// verification survives a restart) but are stripped from every API response by
+// api.sanitize, so they never reach the client.
+type UserEmail struct {
+	Address    string `json:"address"`
+	Verified   bool   `json:"verified"`
+	Source     string `json:"source"` // "github" | "added"
+	Code       string `json:"code,omitempty"`
+	CodeExpiry int64  `json:"codeExpiry,omitempty"`
+}
+
 // User is a GitHub-authenticated user, keyed by the GitHub numeric id as a
-// string. Seed users use ids of the form "seed:<login>".
+// string. Seed users use ids of the form "seed:<login>". The rich profile fields
+// are populated from https://api.github.com/user at sign-in.
 type User struct {
 	ID        string `json:"id"`
 	Login     string `json:"login"`
 	Name      string `json:"name"`
 	AvatarURL string `json:"avatarUrl"`
 	Email     string `json:"email"`
+
+	// Rich GitHub profile.
+	Bio             string `json:"bio,omitempty"`
+	Company         string `json:"company,omitempty"`
+	Location        string `json:"location,omitempty"`
+	Blog            string `json:"blog,omitempty"`
+	TwitterUsername string `json:"twitterUsername,omitempty"`
+	HTMLURL         string `json:"htmlUrl,omitempty"`
+	GithubCreatedAt string `json:"githubCreatedAt,omitempty"`
+	Followers       int    `json:"followers,omitempty"`
+	Following       int    `json:"following,omitempty"`
+	PublicRepos     int    `json:"publicRepos,omitempty"`
+	Hireable        bool   `json:"hireable,omitempty"`
+
+	// Associated emails: the GitHub primary plus any user-added secondaries.
+	Emails []UserEmail `json:"emails,omitempty"`
 }
 
 // Review is the persisted form of a package review. Author identity is joined in

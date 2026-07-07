@@ -24,6 +24,14 @@ type Config struct {
 	StoreDir           string // pebble engine: path to the database directory
 	DevMode            bool
 	CookieDomain       string
+
+	// SMTP for outbound mail (secondary-email verification). When SMTPHost is
+	// empty, mail is logged instead of sent (dev fallback).
+	SMTPHost string
+	SMTPPort string
+	SMTPUser string
+	SMTPPass string
+	SMTPFrom string
 }
 
 // getenv returns the env var, or def when unset/empty.
@@ -49,6 +57,11 @@ func Load() (Config, error) {
 		StoreDir:           getenv("STORE_DIR", "./data/registry-db"),
 		DevMode:            os.Getenv("DEV_MODE") == "true",
 		CookieDomain:       os.Getenv("COOKIE_DOMAIN"),
+		SMTPHost:           os.Getenv("SMTP_HOST"),
+		SMTPPort:           getenv("SMTP_PORT", "587"),
+		SMTPUser:           os.Getenv("SMTP_USER"),
+		SMTPPass:           os.Getenv("SMTP_PASS"),
+		SMTPFrom:           os.Getenv("SMTP_FROM"),
 	}
 
 	if secret := os.Getenv("SESSION_SECRET"); secret != "" {

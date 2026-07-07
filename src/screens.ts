@@ -10,6 +10,8 @@ import type {
     Review,
     Stability,
     Subpackage,
+    User,
+    UserEmail,
     VersionRow,
 } from "./types.js";
 import { compactNum, esc, escAttr, relativeDate, shortHash, sparkline, starStr, tier } from "./util.js";
@@ -41,6 +43,94 @@ const STABILITY: Record<Stability, { color: string; bg: string; border: string }
 
 function relative(iso: string): string {
     return iso ? relativeDate(iso) : "—";
+}
+
+// "Joined May 2019" style label from an ISO date.
+function joinedLabel(iso: string): string {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+}
+
+// Ensure a blog value is a usable href (GitHub stores some without a scheme).
+function profileHref(blog: string): string {
+    return /^https?:\/\//i.test(blog) ? blog : `https://${blog}`;
+}
+
+// A follower / following / public-repos stat row, rendered only when GitHub
+// supplied at least one of them.
+function profileStats(u: User): string {
+    const stats: { n: number; l: string }[] = [];
+    if (u.followers != null) stats.push({ n: u.followers, l: "followers" });
+    if (u.following != null) stats.push({ n: u.following, l: "following" });
+    if (u.publicRepos != null) stats.push({ n: u.publicRepos, l: "repos" });
+    if (!stats.length) return "";
+    const cells = stats
+        .map(
+            (s) =>
+                `<span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:${C.muted}"><b style="color:${C.text};font-weight:700">${s.n.toLocaleString()}</b> ${s.l}</span>`,
+        )
+        .join(`<span style="color:${C.line2}">·</span>`);
+    return `<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">${cells}</div>`;
+}
+
+// Render the settings "Emails" section: GitHub primary + user-added secondaries,
+// each with verified/unverified state and (when unverified) a code-entry box.
+function emailsSection(s: AppState): string {
+    const u = s.user!;
+    const emails: UserEmail[] = u.emails || [];
+    const rows = emails
+        .map((e, i) => {
+            const badge = e.verified
+                ? `<span style="display:inline-flex;align-items:center;gap:5px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:${C.green}">✓ verified</span>`
+                : `<span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#ffcf8f">unverified</span>`;
+            const primary =
+                e.source === "github"
+                    ? `<span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:${C.lilac};background:${C.deep};border:1px solid ${C.line2};padding:2px 7px;border-radius:100px">primary</span>`
+                    : "";
+            const code = s.verifyDrafts[e.address] || "";
+            const verifyBox =
+                !e.verified && e.source === "added"
+                    ? `
+              <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
+                <input value="${escAttr(code)}" data-act="email-code" data-arg="${escAttr(e.address)}" placeholder="6-digit code" maxlength="6" inputmode="numeric" style="width:130px;background:${C.deep};border:1px solid ${C.line};border-radius:8px;padding:8px 11px;color:${C.text};font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:2px;outline:none;box-sizing:border-box" />
+                <button data-act="verify-email" data-arg="${escAttr(e.address)}" style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${C.bg};background:${C.lilac};border:none;padding:8px 14px;border-radius:8px;cursor:pointer">Verify</button>
+                <span style="font-size:11.5px;color:${C.muted}">Enter the 6-digit code we emailed you.</span>
+              </div>`
+                    : "";
+            const remove =
+                e.source === "added"
+                    ? `<button data-act="delete-email" data-arg="${escAttr(e.address)}" style="background:none;border:none;color:${C.pink};cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:12px;padding:0">remove</button>`
+                    : "";
+            return `
+            <div style="padding:14px 16px;border-top:${i === 0 ? "none" : `1px solid ${C.line}`};background:${C.deep};border:1px solid ${C.line};border-radius:12px;margin-bottom:10px">
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                <span style="font-size:14px;color:${C.text};font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(e.address)}</span>
+                ${primary}
+                ${badge}
+                <span style="flex:1"></span>
+                ${remove}
+              </div>
+              ${verifyBox}
+            </div>`;
+        })
+        .join("");
+    const msg = s.emailMsg
+        ? `<div style="font-size:12.5px;color:${C.green};margin-bottom:10px">${esc(s.emailMsg)}</div>`
+        : "";
+    return `
+        <div style="background:${C.panel};border:1px solid ${C.line};border-radius:16px;padding:22px 24px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+            <div style="font-weight:700;font-size:16px">Email addresses</div>
+            <button data-act="sync-github" style="font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:700;color:${C.text};background:transparent;border:1px solid ${C.line2};padding:8px 14px;border-radius:9px;cursor:pointer">⟳ Sync from GitHub</button>
+          </div>
+          ${msg}
+          ${rows || `<div style="font-size:13.5px;color:${C.muted};margin-bottom:12px">No emails on file yet.</div>`}
+          <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
+            <input value="${escAttr(s.emailDraft)}" data-act="email-draft" placeholder="you@example.com" style="flex:1;min-width:180px;background:${C.deep};border:1px solid ${C.line};border-radius:10px;padding:11px 14px;color:${C.text};font-size:14px;outline:none;box-sizing:border-box" />
+            <button data-act="add-email" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${C.bg};background:${C.lilac};border:none;padding:11px 18px;border-radius:9px;cursor:pointer">Add email</button>
+          </div>
+        </div>`;
 }
 
 // ── shell: nav + footer ──────────────────────────────────────────────────────
@@ -1010,10 +1100,16 @@ function acctProfile(s: AppState): string {
           <div style="flex:1;min-width:200px">
             <h1 style="font-weight:800;font-size:26px;letter-spacing:-0.6px;margin:0 0 3px">${esc(u.name)}</h1>
             <div style="font-family:'JetBrains Mono',monospace;font-size:13px;color:${C.lilac};margin-bottom:12px">@${esc(u.login)}</div>
-            <p style="font-size:14.5px;line-height:1.6;color:${C.soft};margin:0 0 12px;max-width:520px">${esc(bio)}</p>
-            <div style="display:flex;gap:18px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;font-size:12px;color:${C.muted}">
-              <span>⎇ github.com/${esc(u.login)}</span>
+            ${bio ? `<p style="font-size:14.5px;line-height:1.6;color:${C.soft};margin:0 0 12px;max-width:520px">${esc(bio)}</p>` : ""}
+            <div style="display:flex;gap:16px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;font-size:12px;color:${C.muted};margin-bottom:${profileStats(u) ? "12px" : "0"}">
+              ${u.company ? `<span>🏢 ${esc(u.company)}</span>` : ""}
+              ${u.location ? `<span>📍 ${esc(u.location)}</span>` : ""}
+              ${u.blog ? `<a href="${escAttr(profileHref(u.blog))}" target="_blank" rel="noopener" style="color:${C.lilac};text-decoration:none">🔗 ${esc(u.blog)}</a>` : ""}
+              ${u.twitterUsername ? `<a href="https://twitter.com/${escAttr(u.twitterUsername)}" target="_blank" rel="noopener" style="color:${C.lilac};text-decoration:none">@${esc(u.twitterUsername)}</a>` : ""}
+              ${u.githubCreatedAt ? `<span>🗓 Joined ${esc(joinedLabel(u.githubCreatedAt))}</span>` : ""}
+              <a href="${escAttr(u.htmlUrl || `https://github.com/${u.login}`)}" target="_blank" rel="noopener" style="color:${C.muted};text-decoration:none">⎇ github.com/${esc(u.login)}</a>
             </div>
+            ${profileStats(u)}
           </div>
           <a href="#/account" data-act="acct-tab" data-arg="settings" style="text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${C.text};border:1px solid ${C.line2};padding:9px 15px;border-radius:9px">Edit profile</a>
         </div>
@@ -1101,14 +1197,14 @@ function acctSettings(s: AppState): string {
 
         <div style="background:${C.panel};border:1px solid ${C.line};border-radius:16px;padding:22px 24px">
           <div style="font-weight:700;font-size:16px;margin-bottom:16px">Connected account</div>
-          <div style="display:flex;align-items:center;gap:13px;background:${C.deep};border:1px solid ${C.line};border-radius:12px;padding:14px 16px;margin-bottom:14px">
+          <div style="display:flex;align-items:center;gap:13px;background:${C.deep};border:1px solid ${C.line};border-radius:12px;padding:14px 16px">
             ${githubIcon(20)}
             <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700;color:${C.text}">GitHub</div><div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.muted}">@${esc(u.login)} · your only sign-in method</div></div>
-            <span style="display:inline-flex;align-items:center;gap:7px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${C.green}"><span style="width:7px;height:7px;border-radius:50%;background:${C.green}"></span> Connected</span>
+            <button data-act="sync-github" style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${C.text};background:transparent;border:1px solid ${C.line2};padding:8px 13px;border-radius:8px;cursor:pointer">⟳ Sync from GitHub</button>
           </div>
-          <label style="display:block;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.5px;color:${C.muted};text-transform:uppercase;margin-bottom:7px">Primary email (from GitHub)</label>
-          <input value="${escAttr(u.email || "")}" readonly style="width:100%;background:${C.deep};border:1px solid ${C.line};border-radius:10px;padding:12px 14px;color:${C.muted};font-size:14.5px;outline:none;box-sizing:border-box" />
         </div>
+
+        ${emailsSection(s)}
 
         <div style="background:${C.panel};border:1px solid ${C.line};border-radius:16px;padding:22px 24px">
           <div style="font-weight:700;font-size:16px;margin-bottom:6px">Notifications</div>

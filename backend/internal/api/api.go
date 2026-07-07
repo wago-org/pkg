@@ -15,6 +15,7 @@ import (
 
 	"github.com/wago-org/registry-backend/internal/auth"
 	"github.com/wago-org/registry-backend/internal/config"
+	"github.com/wago-org/registry-backend/internal/email"
 	"github.com/wago-org/registry-backend/internal/httpx"
 	"github.com/wago-org/registry-backend/internal/model"
 	"github.com/wago-org/registry-backend/internal/store"
@@ -26,6 +27,7 @@ type App struct {
 	Store    store.Store
 	Sessions *auth.Sessions
 	GitHub   *auth.GitHub
+	Email    *email.Sender
 	list     *listCache
 }
 
@@ -36,7 +38,14 @@ func New(cfg config.Config, st store.Store) *App {
 		Store:    st,
 		Sessions: auth.NewSessions(cfg, st),
 		GitHub:   auth.NewGitHub(cfg),
-		list:     &listCache{},
+		Email: email.New(email.Config{
+			Host: cfg.SMTPHost,
+			Port: cfg.SMTPPort,
+			User: cfg.SMTPUser,
+			Pass: cfg.SMTPPass,
+			From: cfg.SMTPFrom,
+		}),
+		list: &listCache{},
 	}
 }
 
@@ -127,6 +136,12 @@ func (a *App) NewRouter() http.Handler {
 	mux.HandleFunc("GET /auth/github/callback", a.handleCallback)
 	mux.HandleFunc("POST /api/logout", a.handleLogout)
 	mux.HandleFunc("GET /api/me", a.handleMe)
+
+	// Secondary emails (add + verify with an emailed code).
+	mux.HandleFunc("GET /api/me/emails", a.handleListEmails)
+	mux.HandleFunc("POST /api/me/emails", a.handleAddEmail)
+	mux.HandleFunc("POST /api/me/emails/verify", a.handleVerifyEmail)
+	mux.HandleFunc("DELETE /api/me/emails/{email}", a.handleDeleteEmail)
 
 	// API tokens (CLI / CI).
 	mux.HandleFunc("POST /api/tokens", a.handleCreateToken)
