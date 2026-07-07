@@ -122,9 +122,9 @@ function emailsSection(s: AppState): string {
         : "";
     return `
         <div style="background:${C.panel};border:1px solid ${C.line};border-radius:16px;padding:22px 24px">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+          <div style="margin-bottom:6px">
             <div style="font-weight:700;font-size:16px">Email addresses</div>
-            <button data-act="sync-github" style="font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:700;color:${C.text};background:transparent;border:1px solid ${C.line2};padding:8px 14px;border-radius:9px;cursor:pointer">⟳ Sync from GitHub</button>
+            <div style="font-size:12.5px;color:${C.muted};margin-top:4px">Your GitHub email is used by default. Use <b style="color:${C.dim};font-weight:700">Sync from GitHub</b> above to refresh it.</div>
           </div>
           ${msg}
           ${rows || `<div style="font-size:13.5px;color:${C.muted};margin-bottom:12px">No emails on file yet.</div>`}
@@ -1275,11 +1275,12 @@ function acctSettings(s: AppState): string {
 
         <div style="background:${C.panel};border:1px solid ${C.line};border-radius:16px;padding:22px 24px">
           <div style="font-weight:700;font-size:16px;margin-bottom:16px">Connected account</div>
-          <div style="display:flex;align-items:center;gap:13px;background:${C.deep};border:1px solid ${C.line};border-radius:12px;padding:14px 16px">
+          <div style="display:flex;align-items:center;gap:13px;background:${C.deep};border:1px solid ${C.line};border-radius:12px;padding:14px 16px;margin-bottom:14px">
             ${githubIcon(20)}
             <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700;color:${C.text}">GitHub</div><div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.muted}">@${esc(u.login)} · your only sign-in method</div></div>
-            <button data-act="sync-github" style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${C.text};background:transparent;border:1px solid ${C.line2};padding:8px 13px;border-radius:8px;cursor:pointer">⟳ Sync from GitHub</button>
           </div>
+          <button data-act="sync-github" style="width:100%;display:flex;align-items:center;justify-content:center;gap:9px;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:${C.bg};background:${C.lilac};border:none;padding:13px;border-radius:11px;cursor:pointer">⟳ Sync from GitHub</button>
+          <div style="font-size:12px;color:${C.muted};margin-top:10px;text-align:center">Refreshes your profile, avatar and email from GitHub.</div>
         </div>
 
         ${emailsSection(s)}
