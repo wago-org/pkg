@@ -336,9 +336,18 @@ async function doSignIn(): Promise<void> {
 
 async function doSignOut(): Promise<void> {
     await api.signOut();
+    api.clearLocalState();
     state.user = null;
     state.menuOpen = false;
-    navHome();
+    // Hard-reload from the root so ALL in-memory + cached state is erased. The
+    // next sign-in then goes through GitHub's account picker with a clean slate,
+    // so switching accounts actually works.
+    try {
+        location.hash = "#/";
+        location.reload();
+    } catch {
+        navHome();
+    }
 }
 
 // Stars mirror the package's real GitHub stars. With permission (public_repo

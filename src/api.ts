@@ -257,6 +257,22 @@ export async function signOut(): Promise<void> {
     localStorage.removeItem(LS.user);
 }
 
+// Wipe every piece of per-browser state we own (session/demo user, stars, votes,
+// comments, install counters, bookmarks, GitHub cache, star prefs). Called on
+// sign-out so nothing carries over between accounts.
+export function clearLocalState(): void {
+    try {
+        const keys: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith("wago.")) keys.push(k);
+        }
+        for (const k of keys) localStorage.removeItem(k);
+    } catch {
+        /* storage disabled — nothing to clear */
+    }
+}
+
 // ── secondary emails ─────────────────────────────────────────────────────────
 // Remote: real endpoints (adds email → mailed 6-digit code → verify). Local:
 // faked against the stored demo user so the settings UI stays explorable.
