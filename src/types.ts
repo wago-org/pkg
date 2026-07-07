@@ -175,6 +175,9 @@ export interface User {
     publicRepos?: number;
     hireable?: boolean;
     emails?: UserEmail[];
+    // Whether the user granted the public_repo scope, letting the registry star
+    // repos on their behalf. Derived server-side; never the raw token.
+    canStar?: boolean;
     initial: string;
     bg: string;
 }

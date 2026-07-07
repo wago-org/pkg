@@ -24,6 +24,9 @@ const codeTTL = 30 * time.Minute
 // from every email, so codes are stored but never sent to the client. Every
 // handler that returns a user or an email list runs its output through this.
 func sanitize(u model.User) model.User {
+	// Never expose the server-only GitHub OAuth material to clients.
+	u.GitHubToken = ""
+	u.GitHubScopes = ""
 	if len(u.Emails) == 0 {
 		return u
 	}
@@ -35,6 +38,18 @@ func sanitize(u model.User) model.User {
 	}
 	u.Emails = out
 	return u
+}
+
+// hasStarScope reports whether a GitHub scope string grants permission to star
+// repositories (public_repo, or the broader repo).
+func hasStarScope(scopes string) bool {
+	for _, s := range strings.Split(scopes, ",") {
+		switch strings.TrimSpace(s) {
+		case "public_repo", "repo":
+			return true
+		}
+	}
+	return false
 }
 
 // mergeAddedEmails carries the user-added ("added") emails from an existing

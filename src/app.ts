@@ -327,7 +327,7 @@ async function doSignIn(): Promise<void> {
     const host = location.hostname;
     const isLocalhost = host === "localhost" || host === "127.0.0.1";
     if (backendMode() === "remote" || !isLocalhost) {
-        window.location.href = api.signInUrl(location.href);
+        window.location.href = api.signInUrl(location.href, state.authStarOptIn);
         return;
     }
     state.user = await api.localSignIn();
@@ -341,10 +341,28 @@ async function doSignOut(): Promise<void> {
     navHome();
 }
 
-// Stars mirror the package's real GitHub stars. Starring here records the
-// package in the user's "Your stars" list AND sends them to the repo on GitHub
-// to star it there (the count shown is GitHub's authoritative stargazer count,
-// so we don't fake an optimistic +1). Unstarring just removes it from the list.
+// Stars mirror the package's real GitHub stars. With permission (public_repo
+// scope) we star the actual repo on the user's behalf via the backend. Without
+// it, we ask once — the user can grant permission, or just be sent to GitHub to
+// star manually — and remember a "don't ask again" preference.
+const STAR_MODE_KEY = "wago.starMode"; // "" = ask · "manual" = open GitHub, don't ask
+const PENDING_STAR_KEY = "wago.pendingStar"; // package short to star after granting
+
+function starMode(): string {
+    try {
+        return localStorage.getItem(STAR_MODE_KEY) || "";
+    } catch {
+        return "";
+    }
+}
+function rememberManualStar(): void {
+    try {
+        localStorage.setItem(STAR_MODE_KEY, "manual");
+    } catch {
+        /* storage disabled */
+    }
+}
+
 async function toggleStar(): Promise<void> {
     if (!state.user) {
         navAuth();
@@ -353,26 +371,103 @@ async function toggleStar(): Promise<void> {
     const p = state.pkg;
     if (!p) return;
     const on = !state.starred;
-    state.starred = on;
-    render();
-    try {
-        await api.setStar(p, on);
-    } catch {
-        state.starred = !on; // revert on failure
+
+    // Unstar: never prompt. Use the GitHub API when permitted, else drop it from
+    // the local "Your stars" list.
+    if (!on) {
+        state.starred = false;
+        render();
+        if (state.user.canStar) void api.githubStar(p, false);
+        else
+            try {
+                await api.setStar(p, false);
+            } catch {
+                /* ignore */
+            }
+        state.starShorts = null;
         render();
         return;
     }
-    // "Your stars" needs a reload next time the account page is shown.
-    state.starShorts = null;
-    // Send the user to GitHub to star the actual repo.
-    if (on && p.repository) {
-        try {
-            window.open(p.repository, "_blank", "noopener");
-        } catch {
-            /* non-browser */
+
+    // Starring with permission → star the real repo directly, no redirect.
+    if (state.user.canStar) {
+        state.starred = true;
+        render();
+        const res = await api.githubStar(p, true);
+        if (res === "need_permission") {
+            // Token was revoked or lost scope — re-consent.
+            openStarPrompt();
+        } else {
+            state.starShorts = null;
         }
+        render();
+        return;
+    }
+
+    // No permission yet: honor a saved "don't ask" preference, else ask once.
+    if (starMode() === "manual") {
+        void manualStar(p);
+        return;
+    }
+    openStarPrompt();
+}
+
+function openStarPrompt(): void {
+    state.starPrompt = true;
+    state.starPromptDontAsk = false;
+    render();
+}
+
+// Fallback (redirect): record the star locally for "Your stars" and open the
+// repo on GitHub so the user can star it there.
+async function manualStar(p: import("./types.js").Package): Promise<void> {
+    state.starred = true;
+    render();
+    try {
+        await api.setStar(p, true);
+    } catch {
+        /* ignore */
+    }
+    state.starShorts = null;
+    try {
+        window.open(p.repository, "_blank", "noopener");
+    } catch {
+        /* non-browser */
     }
     render();
+}
+
+// Redirect to GitHub to grant the star permission, remembering which package to
+// star once we return with the upgraded scope.
+function grantStarPermission(): void {
+    const p = state.pkg;
+    if (p) {
+        try {
+            localStorage.setItem(PENDING_STAR_KEY, p.short);
+        } catch {
+            /* storage disabled */
+        }
+    }
+    window.location.href = api.signInUrl(location.href, true);
+}
+
+// After returning from a permission grant, finish the star the user intended.
+async function completePendingStar(): Promise<void> {
+    if (!state.user?.canStar) return;
+    let short = "";
+    try {
+        short = localStorage.getItem(PENDING_STAR_KEY) || "";
+    } catch {
+        /* ignore */
+    }
+    if (!short) return;
+    try {
+        localStorage.removeItem(PENDING_STAR_KEY);
+    } catch {
+        /* ignore */
+    }
+    const pkg = findPackage(state.registry, short);
+    if (pkg) void api.githubStar(pkg, true);
 }
 
 async function submitReview(): Promise<void> {
@@ -581,6 +676,27 @@ function dispatch(act: string, arg: string | null, el: HTMLElement): void {
             break;
         case "star":
             void toggleStar();
+            break;
+        case "star-allow":
+            grantStarPermission();
+            break;
+        case "star-just-github":
+            if (state.starPromptDontAsk) rememberManualStar();
+            state.starPrompt = false;
+            if (state.pkg) void manualStar(state.pkg);
+            break;
+        case "star-cancel":
+            state.starPrompt = false;
+            state.starPromptDontAsk = false;
+            render();
+            break;
+        case "star-dontask":
+            state.starPromptDontAsk = !state.starPromptDontAsk;
+            render();
+            break;
+        case "auth-star-optin":
+            state.authStarOptIn = !state.authStarOptIn;
+            render();
             break;
         case "bookmark":
             if (state.pkg) {
@@ -815,5 +931,6 @@ export async function init(): Promise<void> {
         return;
     }
     state.user = await api.getMe();
+    await completePendingStar();
     await route();
 }

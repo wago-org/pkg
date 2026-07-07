@@ -66,6 +66,7 @@ export function normalizeUser(raw: Partial<User> & { login: string }): User {
         publicRepos: raw.publicRepos,
         hireable: raw.hireable,
         emails: raw.emails,
+        canStar: raw.canStar,
         initial: initialOf(name),
         bg: raw.bg || avatarBg(raw.login),
     };

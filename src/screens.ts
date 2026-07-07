@@ -543,7 +543,37 @@ export function packageScreen(s: AppState): string {
     </main>
     ${pkgSidebar(s)}
   </div>
+  ${s.starPrompt ? starConsentModal(s) : ""}
 </div>`;
+}
+
+// Consent panel shown the first time a signed-in user without star permission
+// tries to star a package. They can grant permission (so we star the real repo
+// for them from then on), just be sent to GitHub to star manually, and tick
+// "don't ask again" to skip this next time.
+function starConsentModal(s: AppState): string {
+    const repo = s.pkg?.short ? esc(s.pkg.short) : "this package";
+    const check = s.starPromptDontAsk;
+    return `
+    <div data-act="star-cancel" style="position:fixed;inset:0;z-index:120;background:rgba(11,8,32,0.66);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:20px">
+      <div data-act="noop" style="width:100%;max-width:420px;background:${C.panel};border:1px solid ${C.line2};border-radius:18px;padding:24px 24px 20px;box-shadow:0 30px 60px -20px rgba(0,0,0,.75)">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+          <span style="font-size:22px;color:${C.lilac}">★</span>
+          <h2 style="font-weight:800;font-size:18px;margin:0">Star ${repo} on GitHub</h2>
+        </div>
+        <p style="font-size:14px;line-height:1.6;color:${C.soft};margin:0 0 8px">Stars here are real GitHub stars. Let wago star the repository for you and it happens in one click — we only ask for permission to star public repos on your behalf, nothing else.</p>
+        <p style="font-size:12.5px;line-height:1.55;color:${C.muted};margin:0 0 18px">Prefer to do it yourself? We can just open the repo on GitHub so you can hit ★ there.</p>
+        <label data-act="star-dontask" style="display:flex;align-items:center;gap:9px;font-size:13px;color:${C.soft};cursor:pointer;margin-bottom:18px">
+          <span style="width:17px;height:17px;border-radius:5px;border:1px solid ${check ? C.lilac : C.line2};background:${check ? C.lilac : "transparent"};display:inline-flex;align-items:center;justify-content:center;color:${C.bg};font-size:11px;flex-shrink:0">${check ? "✓" : ""}</span>
+          Don't ask again on this browser
+        </label>
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <button data-act="star-allow" style="width:100%;font-family:'Outfit',sans-serif;font-weight:700;font-size:14px;color:${C.bg};background:${C.lilac};border:none;padding:12px;border-radius:11px;cursor:pointer">Allow wago to star for me</button>
+          <button data-act="star-just-github" style="width:100%;font-family:'Outfit',sans-serif;font-weight:700;font-size:14px;color:${C.text};background:transparent;border:1px solid ${C.line2};padding:12px;border-radius:11px;cursor:pointer">Just open GitHub ↗</button>
+          <button data-act="star-cancel" style="width:100%;font-family:'JetBrains Mono',monospace;font-weight:600;font-size:12.5px;color:${C.muted};background:transparent;border:none;padding:6px;border-radius:8px;cursor:pointer">Cancel</button>
+        </div>
+      </div>
+    </div>`;
 }
 
 function deprecationBanner(message: string): string {
@@ -1078,9 +1108,13 @@ export function authScreen(s: AppState): string {
         ${githubIcon(19)}
         Continue with GitHub
       </button>
-      <div style="display:flex;gap:10px;align-items:flex-start;margin-top:18px">
+      <label data-act="auth-star-optin" style="display:flex;gap:10px;align-items:flex-start;margin-top:16px;cursor:pointer">
+        <span style="width:17px;height:17px;border-radius:5px;border:1px solid ${s.authStarOptIn ? C.lilac : C.line2};background:${s.authStarOptIn ? C.lilac : "transparent"};display:inline-flex;align-items:center;justify-content:center;color:${C.bg};font-size:11px;flex-shrink:0;margin-top:1px">${s.authStarOptIn ? "✓" : ""}</span>
+        <span style="font-size:12.5px;line-height:1.55;color:${C.soft}">Also let wago <b style="color:${C.lilac};font-weight:700">★ star repositories</b> on my behalf, so starring a package here stars the real repo on GitHub. You can change this later.</span>
+      </label>
+      <div style="display:flex;gap:10px;align-items:flex-start;margin-top:16px">
         <span style="color:${C.green};font-size:14px;margin-top:1px;flex-shrink:0">✦</span>
-        <p style="font-size:12.5px;line-height:1.55;color:${C.muted};margin:0">We only read your public profile and email. wago never sees your password or private repositories.</p>
+        <p style="font-size:12.5px;line-height:1.55;color:${C.muted};margin:0">We only read your public profile and email${s.authStarOptIn ? ", plus permission to star public repos" : ""}. wago never sees your password or private repositories.</p>
       </div>
     </div>
     <p style="font-size:11.5px;line-height:1.55;color:${C.faint};text-align:center;margin:18px 0 0">By continuing you agree to the Terms of Service and Privacy Policy.</p>

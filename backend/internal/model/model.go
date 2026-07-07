@@ -128,6 +128,12 @@ type User struct {
 
 	// Associated emails: the GitHub primary plus any user-added secondaries.
 	Emails []UserEmail `json:"emails,omitempty"`
+
+	// Server-only GitHub OAuth material. Persisted so the registry can star
+	// repositories on the user's behalf, but stripped from every API response by
+	// api.sanitize — these never reach the client.
+	GitHubToken  string `json:"githubToken,omitempty"`
+	GitHubScopes string `json:"githubScopes,omitempty"`
 }
 
 // Review is the persisted form of a package review. Author identity is joined in

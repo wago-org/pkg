@@ -161,6 +161,8 @@ func (a *App) NewRouter() http.Handler {
 	// Social: stars, reviews, votes, comments.
 	mux.HandleFunc("POST /api/packages/{name}/star", a.handleStar)
 	mux.HandleFunc("DELETE /api/packages/{name}/star", a.handleUnstar)
+	mux.HandleFunc("POST /api/packages/{name}/gh-star", a.handleGitHubStar)
+	mux.HandleFunc("DELETE /api/packages/{name}/gh-star", a.handleGitHubUnstar)
 	mux.HandleFunc("GET /api/packages/{name}/reviews", a.handleListReviews)
 	mux.HandleFunc("POST /api/packages/{name}/reviews", a.handleCreateReview)
 	mux.HandleFunc("POST /api/reviews/{id}/vote", a.handleVote)

@@ -21,7 +21,10 @@ func (a *App) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.SetCookie(w, a.Sessions.NewStateCookie(state))
-	http.Redirect(w, r, a.GitHub.AuthorizeURL(state), http.StatusFound)
+	// ?star=1 additionally requests the public_repo scope so the registry can
+	// star repositories on the user's behalf.
+	star := r.URL.Query().Get("star") == "1"
+	http.Redirect(w, r, a.GitHub.AuthorizeURL(state, star), http.StatusFound)
 }
 
 // handleCallback verifies the OAuth state, exchanges the code, upserts the user,
@@ -42,7 +45,7 @@ func (a *App) handleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := a.GitHub.ExchangeCode(code)
+	token, scope, err := a.GitHub.ExchangeCode(code)
 	if err != nil {
 		log.Printf("oauth: token exchange: %v", err)
 		fail("token_exchange")
@@ -59,7 +62,11 @@ func (a *App) handleCallback(w http.ResponseWriter, r *http.Request) {
 	if existing, ok := a.Store.GetUser(u.ID); ok {
 		u = mergeAddedEmails(u, existing)
 	}
+	// sanitize clears server-only fields; set the fresh GitHub token/scopes after
+	// it so they persist (and are only ever exposed via derived flags, not raw).
 	u = sanitize(u)
+	u.GitHubToken = token
+	u.GitHubScopes = scope
 	if err := a.Store.UpsertUser(u); err != nil {
 		log.Printf("oauth: upsert user: %v", err)
 		fail("store")
@@ -107,7 +114,7 @@ func (a *App) handleCLILogin(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, a.Sessions.NewStateCookie(state))
 	http.SetCookie(w, a.Sessions.NewCLICookie(port+"|"+cliState))
-	http.Redirect(w, r, a.GitHub.AuthorizeURL(state), http.StatusFound)
+	http.Redirect(w, r, a.GitHub.AuthorizeURL(state, false), http.StatusFound)
 }
 
 func parseCLIContext(ctx string) (port, state string, ok bool) {
@@ -144,8 +151,14 @@ func (a *App) handleMe(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
+	// Expose only a derived capability flag, never the token/scopes themselves.
+	canStar := u.GitHubToken != "" && hasStarScope(u.GitHubScopes)
 	su := sanitize(*u)
-	httpx.WriteJSON(w, http.StatusOK, su)
+	raw, _ := json.Marshal(su)
+	var m map[string]any
+	_ = json.Unmarshal(raw, &m)
+	m["canStar"] = canStar
+	httpx.WriteJSON(w, http.StatusOK, m)
 }
 
 // handleCreateToken mints an API token for the current user (for CI use). The

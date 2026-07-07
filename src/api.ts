@@ -231,8 +231,11 @@ export async function getMe(): Promise<User | null> {
     return stored ? normalizeUser(stored) : null;
 }
 
-export function signInUrl(returnTo: string): string {
-    return `${API_BASE}/auth/github/login?redirect=${encodeURIComponent(returnTo)}`;
+// Build the GitHub sign-in URL. When star is true, the backend additionally
+// requests the public_repo scope so it can star repos on the user's behalf.
+export function signInUrl(returnTo: string, star = false): string {
+    const base = `${API_BASE}/auth/github/login?redirect=${encodeURIComponent(returnTo)}`;
+    return star ? `${base}&star=1` : base;
 }
 
 export async function localSignIn(): Promise<User> {
@@ -355,6 +358,28 @@ export async function setStar(
     stars[pkg.short] = on;
     lsSet(LS.stars, stars);
     return { stars: pkg.stars + ((on ? 1 : 0) - (was ? 1 : 0)), starred: on };
+}
+
+// Star (on) or unstar the package's repo on GitHub via the backend, using the
+// user's stored OAuth token. Returns "ok", "need_permission" (missing/expired
+// public_repo scope — the caller should offer to re-authorize), or "error".
+// Only meaningful in remote mode; local mode has no backend to hold the token.
+export async function githubStar(
+    pkg: Package,
+    on: boolean,
+): Promise<"ok" | "need_permission" | "error"> {
+    if (mode !== "remote") return "error";
+    try {
+        const res = await fetch(`${API_BASE}/api/packages/${pkg.short}/gh-star`, {
+            method: on ? "POST" : "DELETE",
+            credentials: "include",
+        });
+        if (res.ok) return "ok";
+        if (res.status === 403) return "need_permission";
+        return "error";
+    } catch {
+        return "error";
+    }
 }
 
 // The package shorts the current user has starred. Remote: a backend join;
