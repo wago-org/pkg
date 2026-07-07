@@ -19,7 +19,7 @@ ENV_FILE   ?= dev.env
 # REMOTE_DIR is the service WorkingDirectory, REMOTE_SVC the systemd unit name,
 # and DEPLOY_GOARCH the server CPU (use arm64 for Graviton). Keep values comment-free.
 REMOTE        ?= ec2-user@api.pkg.wago.sh
-REMOTE_DIR    ?= /opt/wago-registry
+REMOTE_DIR    ?= /home/ec2-user/Wago/registry/backend
 REMOTE_SVC    ?= wago-registry
 DEPLOY_GOARCH ?= amd64
 
@@ -147,18 +147,17 @@ build-linux: ## Cross-compile the backend for the server (linux/$(DEPLOY_GOARCH)
 	@echo "▸ built backend/registry (linux/$(DEPLOY_GOARCH))"
 
 .PHONY: redeploy
-redeploy: ## Rebuild + restart the backend ON THIS machine (run this while on the server)
-	cd backend && go build -trimpath -o registry ./cmd/registry
-	sudo install -m 0755 backend/registry $(REMOTE_DIR)/registry
+redeploy: ## Rebuild + restart the backend ON THIS machine (run this on the server, from the repo)
+	cd backend && go build -trimpath -o registry.new ./cmd/registry && mv -f registry.new registry
 	sudo systemctl restart $(REMOTE_SVC)
 	@sleep 1; systemctl is-active $(REMOTE_SVC) && curl -fsS localhost:$(API_PORT)/api/health \
 		&& echo "  ✓ redeployed + healthy" || echo "  ⚠ check: sudo journalctl -u $(REMOTE_SVC) -n50"
 
 .PHONY: redeploy-remote
-redeploy-remote: build-linux ## From your dev machine: cross-compile, upload, and restart on $(REMOTE)
-	scp backend/registry $(REMOTE):/tmp/wago-registry.new
-	ssh $(REMOTE) 'set -e; \
-		sudo install -m 0755 /tmp/wago-registry.new $(REMOTE_DIR)/registry; rm -f /tmp/wago-registry.new; \
+redeploy-remote: build-linux ## From your dev machine: cross-compile, upload the binary, restart on $(REMOTE)
+	scp backend/registry $(REMOTE):$(REMOTE_DIR)/registry.new
+	ssh $(REMOTE) 'set -e; cd $(REMOTE_DIR); \
+		mv -f registry.new registry; \
 		sudo systemctl restart $(REMOTE_SVC); sleep 1; \
 		systemctl is-active $(REMOTE_SVC); curl -fsS localhost:$(API_PORT)/api/health; \
 		echo "  ✓ redeployed + healthy on $(REMOTE)"'

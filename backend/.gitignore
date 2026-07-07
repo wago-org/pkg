@@ -1,5 +1,7 @@
-# Registry store (created/seeded at runtime)
-data/store.json
+# Registry store — created/seeded at runtime (JSON store file + Pebble DB dir).
+# Never commit runtime state; it would clobber the live store on deploy.
+data/
+/registry.new
 
 # Atomic-write temp files
 *.tmp
