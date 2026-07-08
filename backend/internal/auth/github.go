@@ -154,6 +154,39 @@ func (g *GitHub) SetStar(token, owner, repo string, on bool) error {
 	return errors.New("github star failed: " + resp.Status)
 }
 
+// RepoPermission returns the token user's permission on owner/repo — one of
+// "admin", "maintain", "write", "triage", "read", or "none" — from the
+// `permissions` object on GET /repos/{owner}/{repo}. An error means the repo
+// couldn't be read at all (missing, or private without repo scope), which the
+// caller treats as "no verified access". Public repos work with any user token.
+func (g *GitHub) RepoPermission(token, owner, repo string) (string, error) {
+	r, err := ghGetJSON[struct {
+		Permissions struct {
+			Admin    bool `json:"admin"`
+			Maintain bool `json:"maintain"`
+			Push     bool `json:"push"`
+			Triage   bool `json:"triage"`
+			Pull     bool `json:"pull"`
+		} `json:"permissions"`
+	}](token, "https://api.github.com/repos/"+url.PathEscape(owner)+"/"+url.PathEscape(repo))
+	if err != nil {
+		return "", err
+	}
+	switch {
+	case r.Permissions.Admin:
+		return "admin", nil
+	case r.Permissions.Maintain:
+		return "maintain", nil
+	case r.Permissions.Push:
+		return "write", nil
+	case r.Permissions.Triage:
+		return "triage", nil
+	case r.Permissions.Pull:
+		return "read", nil
+	}
+	return "none", nil
+}
+
 // OrgRole returns the token user's membership role in org — "admin" for owners,
 // "member" otherwise — via GET /user/memberships/orgs/{org}. It returns an empty
 // role (and no error) when the user isn't an active member of the org; a non-nil

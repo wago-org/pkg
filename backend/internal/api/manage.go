@@ -9,7 +9,8 @@ import (
 )
 
 // ownedPackage resolves the package named in the URL and checks that the current
-// user owns it. On any failure it writes the response and returns ok=false.
+// user may manage it — its owner, or a site admin (for takedowns). On any failure
+// it writes the response and returns ok=false.
 func (a *App) ownedPackage(w http.ResponseWriter, r *http.Request) (model.Package, bool) {
 	u := a.Sessions.CurrentUser(r)
 	if u == nil {
@@ -21,7 +22,7 @@ func (a *App) ownedPackage(w http.ResponseWriter, r *http.Request) (model.Packag
 		httpx.WriteError(w, http.StatusNotFound, "package not found")
 		return model.Package{}, false
 	}
-	if p.OwnerLogin != u.Login {
+	if !strings.EqualFold(p.OwnerLogin, u.Login) && !u.Admin {
 		httpx.WriteError(w, http.StatusForbidden, "not the package owner")
 		return model.Package{}, false
 	}

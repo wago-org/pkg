@@ -46,6 +46,13 @@ export interface AppState {
     starPrompt: boolean;
     starPromptDontAsk: boolean;
 
+    // Report-a-package modal.
+    reportOpen: boolean;
+    reportReason: string;
+    reportDetail: string;
+    reportSending: boolean;
+    reportDone: boolean;
+
     // GitHub issue sync (client-side fetch)
     ghIssues: Issue[] | null; // null = not synced; [] = synced but empty
     ghIssuesLoading: boolean;
@@ -116,6 +123,11 @@ export const state: AppState = {
     bookmarked: false,
     starPrompt: false,
     starPromptDontAsk: false,
+    reportOpen: false,
+    reportReason: "",
+    reportDetail: "",
+    reportSending: false,
+    reportDone: false,
 
     ghIssues: null,
     ghIssuesLoading: false,

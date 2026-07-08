@@ -562,6 +562,7 @@ export function packageScreen(s: AppState): string {
     ${pkgSidebar(s)}
   </div>
   ${s.starPrompt ? starConsentModal(s) : ""}
+  ${s.reportOpen ? reportModal(s) : ""}
 </div>`;
 }
 
@@ -1189,7 +1190,67 @@ function pkgSidebar(s: AppState): string {
               ? `<a href="${escAttr(p.repository)}" target="_blank" rel="noopener" style="text-decoration:none;text-align:center;margin-top:14px;margin-bottom:6px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${C.bg};background:${C.lilac};padding:11px;border-radius:10px">Repository ↗</a>`
               : ""
       }
+      ${moderationLinks(s)}
     </aside>`;
+}
+
+// moderationLinks renders the report link (any signed-in user) and, for site
+// admins, a takedown button — a small footer under the sidebar.
+function moderationLinks(s: AppState): string {
+    const rows: string[] = [];
+    if (s.user) {
+        rows.push(
+            `<button data-act="report-open" style="display:flex;align-items:center;gap:7px;width:100%;justify-content:center;font-family:'Outfit',sans-serif;font-weight:600;font-size:12.5px;color:${C.muted};background:transparent;border:1px solid ${C.line};padding:8px;border-radius:9px;cursor:pointer">⚑ Report package</button>`,
+        );
+    }
+    if (s.user?.admin) {
+        rows.push(
+            `<button data-act="takedown" title="Remove this package from the registry" style="display:flex;align-items:center;gap:7px;width:100%;justify-content:center;font-family:'Outfit',sans-serif;font-weight:700;font-size:12.5px;color:${C.pink};background:transparent;border:1px solid #6b3453;padding:8px;border-radius:9px;cursor:pointer">Take down</button>`,
+        );
+    }
+    if (!rows.length) return "";
+    return `<div style="margin-top:16px;padding-top:14px;border-top:1px solid ${C.line};display:flex;flex-direction:column;gap:8px">${rows.join("")}</div>`;
+}
+
+// reportModal is the flag-for-moderation panel: pick a reason, add optional
+// detail, submit. Mirrors starConsentModal's overlay styling.
+function reportModal(s: AppState): string {
+    const shell = (inner: string) =>
+        `<div data-act="report-cancel" style="position:fixed;inset:0;z-index:120;background:rgba(11,8,32,0.66);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:20px">
+      <div data-act="noop" style="width:100%;max-width:440px;background:${C.panel};border:1px solid ${C.line2};border-radius:18px;padding:24px;box-shadow:0 30px 60px -20px rgba(0,0,0,.75)">${inner}</div>
+    </div>`;
+    if (s.reportDone) {
+        return shell(
+            `<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><span style="font-size:20px;color:${C.green}">✓</span><h2 style="font-weight:800;font-size:18px;margin:0">Report sent</h2></div>
+       <p style="font-size:14px;line-height:1.6;color:${C.soft};margin:0 0 18px">Thanks — the wago moderators will take a look.</p>
+       <button data-act="report-cancel" style="width:100%;font-family:'Outfit',sans-serif;font-weight:700;font-size:14px;color:${C.text};background:transparent;border:1px solid ${C.line2};padding:12px;border-radius:11px;cursor:pointer">Close</button>`,
+        );
+    }
+    const reasons: [string, string][] = [
+        ["malware", "Malware or security risk"],
+        ["impersonation", "Impersonation / not the author's repo"],
+        ["spam", "Spam or low quality"],
+        ["broken", "Broken or misleading"],
+        ["other", "Something else"],
+    ];
+    const opts = reasons
+        .map(([v, label]) => {
+            const on = s.reportReason === v;
+            return `<label data-act="report-reason" data-arg="${v}" style="display:flex;align-items:center;gap:9px;font-size:13.5px;color:${on ? C.text : C.soft};cursor:pointer;padding:8px 10px;border-radius:9px;border:1px solid ${on ? C.lilac : C.line};background:${on ? C.deep : "transparent"}">
+        <span style="width:15px;height:15px;border-radius:50%;border:1px solid ${on ? C.lilac : C.line2};display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">${on ? `<span style="width:8px;height:8px;border-radius:50%;background:${C.lilac}"></span>` : ""}</span>${label}</label>`;
+        })
+        .join("");
+    const canSend = !!s.reportReason && !s.reportSending;
+    return shell(
+        `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><span style="font-size:18px;color:${C.pink}">⚑</span><h2 style="font-weight:800;font-size:18px;margin:0">Report ${esc(s.pkg?.short || "package")}</h2></div>
+     <p style="font-size:13px;line-height:1.55;color:${C.muted};margin:0 0 16px">This goes to the wago moderators. Not for bugs — use the repo's issues for those.</p>
+     <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:14px">${opts}</div>
+     <textarea data-act="report-detail" placeholder="Add details (optional)" style="width:100%;box-sizing:border-box;min-height:70px;resize:vertical;font-family:'Outfit',sans-serif;font-size:13.5px;color:${C.text};background:${C.deep};border:1px solid ${C.line2};border-radius:11px;padding:11px;margin-bottom:16px">${esc(s.reportDetail)}</textarea>
+     <div style="display:flex;flex-direction:column;gap:9px">
+       <button data-act="report-submit" ${canSend ? "" : "disabled"} style="width:100%;font-family:'Outfit',sans-serif;font-weight:700;font-size:14px;color:${C.bg};background:${canSend ? C.lilac : C.line2};border:none;padding:12px;border-radius:11px;cursor:${canSend ? "pointer" : "not-allowed"}">${s.reportSending ? "Sending…" : "Send report"}</button>
+       <button data-act="report-cancel" style="width:100%;font-family:'JetBrains Mono',monospace;font-weight:600;font-size:12.5px;color:${C.muted};background:transparent;border:none;padding:6px;border-radius:8px;cursor:pointer">Cancel</button>
+     </div>`,
+    );
 }
 
 // A small pill linking to another account's wago profile (org membership or
