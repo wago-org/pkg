@@ -13,7 +13,9 @@ import {
     homeScreen,
     nav,
     packageScreen,
+    searchRows,
     searchScreen,
+    searchSummary,
     userScreen,
 } from "./screens.js";
 import { findPackage, state } from "./state.js";
@@ -127,6 +129,46 @@ function navSearch(): void {
     pushUrl(q ? `/search?q=${encodeURIComponent(q)}` : "/search");
     render();
     scrollTop();
+}
+
+// ── realtime search ───────────────────────────────────────────────────────────
+
+let searchTimer: ReturnType<typeof setTimeout> | undefined;
+
+// Called on every keystroke in a search box. On the search screen we patch only
+// the results + summary in place (so the input never loses focus) and keep the
+// ?q= in the URL current via replaceState. Elsewhere (nav bar / home hero) the
+// first keystroke jumps to the search screen, carrying focus with it.
+function onQueryInput(el: HTMLInputElement): void {
+    if (state.screen === "search") {
+        if (searchTimer) clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+            const rows = document.getElementById("pkg-results");
+            const summary = document.getElementById("search-summary");
+            if (rows) rows.innerHTML = searchRows(state);
+            if (summary) summary.innerHTML = searchSummary(state);
+            const q = state.query.trim();
+            history.replaceState(null, "", q ? `/search?q=${encodeURIComponent(q)}` : "/search");
+        }, 80);
+        return;
+    }
+    // Coming from the home hero / a nav bar on another screen: switch to search,
+    // then move focus to the (freshly rendered) nav search box at the caret.
+    // Deferred to the next tick so the refocus lands after this input event (and
+    // the re-render it triggers) has fully settled.
+    const caret = el.selectionStart ?? state.query.length;
+    navSearch();
+    setTimeout(() => {
+        const input = document.querySelector<HTMLInputElement>('nav input[data-act="query"]');
+        if (!input) return;
+        input.focus();
+        const pos = Math.min(caret, input.value.length);
+        try {
+            input.setSelectionRange(pos, pos);
+        } catch {
+            /* some input types disallow setSelectionRange */
+        }
+    }, 0);
 }
 
 // Show the current user's account at /{login} (?tab= for non-profile tabs).
@@ -1082,8 +1124,10 @@ function wireEvents(): void {
         const el = e.target as HTMLElement;
         const act = el.getAttribute("data-act");
         const value = (el as HTMLInputElement | HTMLTextAreaElement).value;
-        if (act === "query") state.query = value;
-        else if (act === "draft") state.draftText = value;
+        if (act === "query") {
+            state.query = value;
+            onQueryInput(el as HTMLInputElement);
+        } else if (act === "draft") state.draftText = value;
         else if (act === "bio") state.bioDraft = value;
         else if (act === "comment-draft") state.commentDraft = value;
         else if (act === "comment-edit-draft") state.commentEditDraft = value;
