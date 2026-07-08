@@ -527,8 +527,11 @@ export function packageScreen(s: AppState): string {
     const bm = s.bookmarked;
     const bookmarkBtn = `<button data-act="bookmark" title="${bm ? "Saved" : "Save for later"}" style="display:inline-flex;align-items:center;gap:8px;font-family:'Outfit',sans-serif;font-weight:700;font-size:13.5px;color:${C.text};background:${bm ? C.panel : "transparent"};border:1px solid ${bm ? C.lilac : C.line2};padding:8px 14px;border-radius:9px;cursor:pointer;transition:all .15s">${bookmarkIcon(15, bm ? C.lilac : C.muted, bm)} ${bm ? "Saved" : "Save"}</button>`;
     const starBtn = `<button data-act="star" title="${s.starred ? "In your stars — opens the repo on GitHub" : "Star this repository on GitHub"}" style="display:inline-flex;align-items:center;gap:8px;font-family:'Outfit',sans-serif;font-weight:700;font-size:13.5px;color:${C.text};background:${s.starred ? C.panel : "transparent"};border:1px solid ${s.starred ? C.lilac : C.line2};padding:8px 14px;border-radius:9px;cursor:pointer;transition:all .15s"><span style="font-size:15px;color:${s.starred ? C.lilac : C.muted}">★</span> ${s.starred ? "Starred" : "Star"} <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12.5px;background:${C.deep};padding:2px 8px;border-radius:6px">${s.starCount.toLocaleString()}</span></button>`;
-    // Opens the source repository on GitHub, alongside save + star.
-    const repoBtn = `<a href="${escAttr(p.repository)}" target="_blank" rel="noopener" title="Open the repository on GitHub" style="display:inline-flex;align-items:center;gap:8px;text-decoration:none;font-family:'Outfit',sans-serif;font-weight:700;font-size:13.5px;color:${C.text};background:transparent;border:1px solid ${C.line2};padding:8px 14px;border-radius:9px;cursor:pointer;transition:all .15s"><span style="font-size:14px;color:${C.muted}">⎇</span> Repo ↗</a>`;
+    // Opens the source repository on GitHub, alongside save + star. Omitted when
+    // the package has no repository (an empty href would navigate to the site root).
+    const repoBtn = p.repository
+        ? `<a href="${escAttr(p.repository)}" target="_blank" rel="noopener" title="Open the repository on GitHub" style="display:inline-flex;align-items:center;gap:8px;text-decoration:none;font-family:'Outfit',sans-serif;font-weight:700;font-size:13.5px;color:${C.text};background:transparent;border:1px solid ${C.line2};padding:8px 14px;border-radius:9px;cursor:pointer;transition:all .15s"><span style="font-size:14px;color:${C.muted}">⎇</span> Repo ↗</a>`
+        : "";
 
     return `
 <div style="padding:28px 0 72px">

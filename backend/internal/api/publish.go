@@ -95,6 +95,29 @@ func (a *App) handlePublish(w http.ResponseWriter, r *http.Request) {
 	}
 
 	p.Name = req.Manifest.Module
+	// Carry the top-level manifest metadata onto the package (subpackage roll-up
+	// below only fills what the top level leaves blank).
+	if v := req.Manifest.Repository; v != "" {
+		p.Repository = v
+	}
+	if v := req.Manifest.Homepage; v != "" {
+		p.Homepage = v
+	}
+	if v := req.Manifest.License; v != "" {
+		p.License = v
+	}
+	if v := req.Manifest.Description; v != "" {
+		p.Description = v
+	}
+	if v := req.Manifest.Stability; v != "" {
+		p.Stability = v
+	}
+	if len(req.Manifest.Keywords) > 0 {
+		p.Keywords = unionStrings(p.Keywords, req.Manifest.Keywords)
+	}
+	if len(req.Manifest.Authors) > 0 {
+		p.Authors = parseAuthors(req.Manifest.Authors)
+	}
 	subs := req.Manifest.ResolvedSubpackages()
 	p.Subpackages = subs
 	aggregateFromSubpackages(&p, subs)
@@ -184,6 +207,30 @@ func aggregateFromSubpackages(p *model.Package, subs []model.Subpackage) {
 	if len(subs) > 0 {
 		p.Compat = subs[0].Compat
 	}
+}
+
+// parseAuthors turns manifest author strings into model.Authors. It recognises a
+// trailing GitHub handle in "Name <handle>", "Name (@handle)", or a bare
+// "@handle"; otherwise the whole string is the name.
+func parseAuthors(list []string) []model.Author {
+	out := make([]model.Author, 0, len(list))
+	for _, raw := range list {
+		s := strings.TrimSpace(raw)
+		if s == "" {
+			continue
+		}
+		a := model.Author{Name: s}
+		if i := strings.IndexAny(s, "<("); i >= 0 {
+			a.Name = strings.TrimSpace(s[:i])
+			handle := strings.Trim(s[i:], "<>()@ ")
+			a.Github = strings.TrimPrefix(handle, "@")
+		} else if strings.HasPrefix(s, "@") {
+			a.Name = strings.TrimPrefix(s, "@")
+			a.Github = a.Name
+		}
+		out = append(out, a)
+	}
+	return out
 }
 
 // unionStrings appends items from add that are not already in base, preserving
