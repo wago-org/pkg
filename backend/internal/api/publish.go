@@ -4,6 +4,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -43,6 +45,30 @@ type publishRequest struct {
 	Tags       []string       `json:"tags"`
 }
 
+// authorizeRepo verifies the publisher has write access (owner / maintainer /
+// collaborator) to the manifest's GitHub repository, so a package can only be
+// published by someone who actually contributes to the repo it points at. Public
+// repos verify with any signed-in user's token; a private repo needs `repo` scope
+// (else it reads as inaccessible and is rejected).
+func (a *App) authorizeRepo(u *model.User, repository string) error {
+	owner, repo, ok := parseGitHubRepo(repository)
+	if !ok {
+		return errors.New("manifest.repository must be a GitHub URL, e.g. https://github.com/owner/repo")
+	}
+	if u.GitHubToken == "" {
+		return fmt.Errorf("re-run `wago auth login` so we can verify your access to github.com/%s/%s", owner, repo)
+	}
+	perm, err := a.GitHub.RepoPermission(u.GitHubToken, owner, repo)
+	if err != nil {
+		return fmt.Errorf("can't verify access to github.com/%s/%s — confirm it exists and that you can see it", owner, repo)
+	}
+	switch perm {
+	case "admin", "maintain", "write":
+		return nil
+	}
+	return fmt.Errorf("publishing github.com/%s/%s requires write access to it (yours: %s)", owner, repo, perm)
+}
+
 // shortFromModule derives a package short id from a module path: the last path
 // element with a leading "wago-" or "wago_" stripped.
 func shortFromModule(module string) string {
@@ -77,6 +103,13 @@ func (a *App) handlePublish(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.TrimSpace(req.Version) == "" {
 		httpx.WriteError(w, http.StatusBadRequest, "version is required")
+		return
+	}
+
+	// Authorization: the publisher must have write access to the GitHub repo the
+	// manifest points at — proof they maintain / contribute to it.
+	if err := a.authorizeRepo(u, req.Manifest.Repository); err != nil {
+		httpx.WriteError(w, http.StatusForbidden, err.Error())
 		return
 	}
 

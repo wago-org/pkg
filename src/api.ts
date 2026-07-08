@@ -323,6 +323,19 @@ export async function voteReview(reviewId: string, dir: "up" | "down" | null): P
     await apiSend(`/api/reviews/${reviewId}/vote`, "POST", { dir });
 }
 
+// ── moderation ───────────────────────────────────────────────────────────────
+
+// reportPackage flags a package for the wago moderators (any signed-in user).
+export async function reportPackage(short: string, reason: string, detail: string): Promise<void> {
+    await apiSend(`/api/packages/${short}/report`, "POST", { reason, detail });
+}
+
+// takedownPackage removes a package (site admins / owner). Backed by the same
+// DELETE endpoint as owner-unpublish, now also allowed for admins.
+export async function takedownPackage(short: string): Promise<void> {
+    await apiSend(`/api/packages/${short}`, "DELETE");
+}
+
 // ── comments ─────────────────────────────────────────────────────────────────
 
 export async function loadComments(pkg: Package, user: User | null): Promise<Comment[]> {

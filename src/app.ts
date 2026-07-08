@@ -859,6 +859,35 @@ function openSub(id: string, push = true): void {
 
 // ── event delegation ─────────────────────────────────────────────────────────
 
+// submitReport sends the current report modal to the backend, then shows the
+// "sent" confirmation (or leaves the modal open to retry on failure).
+async function submitReport(): Promise<void> {
+    if (!state.pkg || !state.reportReason || state.reportSending) return;
+    state.reportSending = true;
+    render();
+    try {
+        await api.reportPackage(state.pkg.short, state.reportReason, state.reportDetail);
+        state.reportDone = true;
+    } catch {
+        // Keep the form open so the user can try again.
+    }
+    state.reportSending = false;
+    render();
+}
+
+// doTakedown removes a package (admins). Confirms first, then returns home.
+async function doTakedown(): Promise<void> {
+    const p = state.pkg;
+    if (!p) return;
+    if (!confirm(`Take down "${p.short}"? This removes the package from the registry for everyone.`)) return;
+    try {
+        await api.takedownPackage(p.short);
+        navHome();
+    } catch {
+        alert("Takedown failed — you may not have permission, or the server errored.");
+    }
+}
+
 function dispatch(act: string, arg: string | null, el: HTMLElement): void {
     switch (act) {
         case "home":
@@ -955,6 +984,29 @@ function dispatch(act: string, arg: string | null, el: HTMLElement): void {
                 api.setBookmark(state.pkg.short, state.bookmarked);
                 render();
             }
+            break;
+        case "report-open":
+            state.reportOpen = true;
+            state.reportReason = "";
+            state.reportDetail = "";
+            state.reportDone = false;
+            state.reportSending = false;
+            render();
+            break;
+        case "report-reason":
+            state.reportReason = arg || "";
+            render();
+            break;
+        case "report-cancel":
+            state.reportOpen = false;
+            state.reportSending = false;
+            render();
+            break;
+        case "report-submit":
+            void submitReport();
+            break;
+        case "takedown":
+            void doTakedown();
             break;
         case "composer-open":
             if (!state.user) {
@@ -1162,6 +1214,7 @@ function wireEvents(): void {
         } else if (act === "draft") state.draftText = value;
         else if (act === "bio") state.bioDraft = value;
         else if (act === "comment-draft") state.commentDraft = value;
+        else if (act === "report-detail") state.reportDetail = value;
         else if (act === "comment-edit-draft") state.commentEditDraft = value;
         else if (act === "reply-draft") state.replyDraft = value;
         else if (act === "email-draft") state.emailDraft = value;

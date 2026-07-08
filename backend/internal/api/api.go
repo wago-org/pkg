@@ -187,6 +187,9 @@ func (a *App) NewRouter() http.Handler {
 	mux.HandleFunc("PUT /api/comments/{id}", a.handleUpdateComment)
 	mux.HandleFunc("DELETE /api/comments/{id}", a.handleDeleteComment)
 
+	// Moderation.
+	mux.HandleFunc("POST /api/packages/{name}/report", a.handleReportPackage)
+
 	// Publish / manage.
 	mux.HandleFunc("POST /api/publish", a.handlePublish)
 	mux.HandleFunc("DELETE /api/packages/{name}", a.handleUnpublishPackage)
