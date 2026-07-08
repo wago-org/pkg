@@ -668,7 +668,10 @@ function readmeTab(s: AppState): string {
     if (s.readmeLoading) {
         return `<div style="padding:22px;color:${C.muted};font-size:14px">Loading README from GitHub…</div>`;
     }
-    return `<div style="padding:24px;background:${C.panel};border:1px solid ${C.line};border-radius:12px;color:${C.muted};font-size:14px">No README found in the repository. <a href="${escAttr(p.repository)}" target="_blank" rel="noopener" style="color:${C.lilac};text-decoration:none">View on GitHub ↗</a></div>`;
+    const viewLink = p.repository
+        ? ` <a href="${escAttr(p.repository)}" target="_blank" rel="noopener" style="color:${C.lilac};text-decoration:none">View on GitHub ↗</a>`
+        : "";
+    return `<div style="padding:24px;background:${C.panel};border:1px solid ${C.line};border-radius:12px;color:${C.muted};font-size:14px">No README found in the repository.${viewLink}</div>`;
 }
 
 // The grid of subpackage cards. Each opens the subpackage's own page in-app
@@ -1179,7 +1182,11 @@ function pkgSidebar(s: AppState): string {
               : ""
       }
       ${kwSection}
-      <a href="${escAttr(p.repository)}" target="_blank" rel="noopener" style="text-decoration:none;text-align:center;margin-top:14px;margin-bottom:6px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${C.bg};background:${C.lilac};padding:11px;border-radius:10px">Repository ↗</a>
+      ${
+          p.repository
+              ? `<a href="${escAttr(p.repository)}" target="_blank" rel="noopener" style="text-decoration:none;text-align:center;margin-top:14px;margin-bottom:6px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${C.bg};background:${C.lilac};padding:11px;border-radius:10px">Repository ↗</a>`
+              : ""
+      }
     </aside>`;
 }
 
