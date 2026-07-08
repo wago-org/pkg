@@ -324,20 +324,25 @@ export function homeScreen(s: AppState): string {
       <h2 style="font-weight:800;font-size:24px;letter-spacing:-0.6px;margin:0">Featured packages</h2>
       <a href="/search" data-act="search" style="text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:${C.lilac}">browse all →</a>
     </div>
-    <div style="display:flex;align-items:center;gap:16px;margin:-6px 0 16px;font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted};flex-wrap:wrap">
-      <span>star colour = popularity:</span>
-      <span style="display:flex;align-items:center;gap:5px"><span style="color:#8d7fc7">★</span>rising</span>
-      <span style="display:flex;align-items:center;gap:5px"><span style="color:${C.lilac}">★</span>popular</span>
-      <span style="display:flex;align-items:center;gap:5px"><span style="color:${C.green}">★</span>top-rated</span>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">${featured}</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">${featured || emptyCatalogNote()}</div>
   </section>
 
   <section style="margin-bottom:72px">
     <h2 style="font-weight:800;font-size:24px;letter-spacing:-0.6px;margin:0 0 18px">Recently updated</h2>
-    <div style="display:flex;flex-direction:column;gap:1px;border:1px solid ${C.line};border-radius:14px;overflow:hidden">${recent}</div>
+    <div style="display:grid;gap:1px;border:1px solid ${C.line};border-radius:14px;overflow:hidden">${recent || emptyCatalogNote()}</div>
   </section>
 </div>`;
+}
+
+// Stars are the headline quality metric (reviews aren't released yet). A small
+// ★-count chip, reused across cards, search rows, the header and profiles.
+function starMetric(p: Package, size = 12): string {
+    return `<span style="display:inline-flex;align-items:center;gap:5px;font-family:'JetBrains Mono',monospace;font-size:${size}px;color:${C.lilac}"><span>★</span>${compactNum(p.stars)}</span>`;
+}
+
+// Shown wherever a package list is empty (nothing published yet).
+function emptyCatalogNote(): string {
+    return `<div style="grid-column:1/-1;padding:44px;text-align:center;color:${C.muted};font-size:14px;background:${C.panel};border:1px solid ${C.line};border-radius:14px">No packages published yet. <a href="https://github.com/wago-org/wago" target="_blank" rel="noopener" style="color:${C.lilac};text-decoration:none;font-weight:700">Publish the first one ↗</a></div>`;
 }
 
 function featuredCard(p: Package): string {
@@ -350,11 +355,7 @@ function featuredCard(p: Package): string {
           </div>
           <p style="font-size:13.5px;line-height:1.5;color:${C.soft};margin:0 0 16px;flex:1">${esc(p.description)}</p>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">${tagPills(p.tags)}</div>
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px">
-            <span style="font-size:12.5px;letter-spacing:1px;color:${tier(p.score)}">${starStr(p.rating)}</span>
-            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.dim}">${p.rating}</span>
-            <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:${C.muted}">(${p.ratingCount})</span>
-          </div>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px">${starMetric(p, 12.5)}</div>
           <div style="display:flex;align-items:center;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.muted};border-top:1px solid ${C.line};padding-top:12px">
             <span>↓ ${esc(p.installsWeekLabel)}/wk</span>
             <span style="color:${C.dim}">${esc(p.version)}</span>
@@ -375,7 +376,7 @@ function recentRow(p: Package): string {
             <p style="font-size:13px;color:${C.soft};margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.description)}</p>
           </div>
           <div style="text-align:right;white-space:nowrap">
-            <div style="font-size:12px;letter-spacing:1px;color:${tier(p.score)}">${starStr(p.rating)}</div>
+            <div>${starMetric(p, 12)}</div>
             <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted};margin-top:3px">${esc(relative(p.updatedAt))}</div>
           </div>
         </a>`;
@@ -397,13 +398,15 @@ export function searchScreen(s: AppState): string {
           </label>`;
         })
         .join("");
-    const sorts = (["popular", "quality", "recent"] as const)
+    const sorts = (["popular", "recent"] as const)
         .map((k) => {
             const on = s.sort === k;
             return `<button data-act="sort" data-arg="${k}" style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;color:${on ? C.bg : C.dim};background:${on ? C.lilac : "transparent"};border:none;padding:6px 12px;border-radius:6px;cursor:pointer">${k}</button>`;
         })
         .join("");
-    const rows = results.map((p) => searchRow(p)).join("");
+    const rows =
+        results.map((p) => searchRow(p)).join("") ||
+        `<div style="padding:44px;text-align:center;color:${C.muted};font-size:14px;background:${C.panel};border:1px solid ${C.line};border-radius:14px">No packages${s.query ? ` matching “${esc(s.query)}”` : " published yet"}.</div>`;
     const shown = s.query || "all packages";
 
     return `
@@ -459,10 +462,9 @@ function searchRow(p: Package): string {
           <p style="font-size:14px;line-height:1.55;color:${C.soft};margin:0 0 13px">${esc(p.description)}</p>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:13px">${tagPills(p.tags)}</div>
           <div style="display:flex;align-items:center;gap:20px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.muted};flex-wrap:wrap">
-            <span style="display:flex;align-items:center;gap:6px"><span style="font-size:12.5px;letter-spacing:1px;color:${tier(p.score)}">${starStr(p.rating)}</span><span style="color:${C.dim}">${p.rating} · ${p.ratingCount}</span></span>
+            <span style="display:flex;align-items:center;gap:6px">${starMetric(p, 12.5)}<span style="color:${C.dim}">stars</span></span>
             <span>↓ ${esc(p.installsWeekLabel)}/wk</span>
             <span>updated ${esc(relative(p.updatedAt))}</span>
-            <span style="display:flex;align-items:center;gap:7px">score <span style="width:64px;height:5px;background:${C.deep};border-radius:3px;overflow:hidden"><span style="display:block;height:100%;width:${p.score}%;background:linear-gradient(90deg,${C.violet},${C.green})"></span></span> <span style="color:${C.dim}">${p.score}</span></span>
           </div>
         </a>`;
 }
@@ -481,8 +483,8 @@ export function filterPackages(s: AppState): Package[] {
         return true;
     });
     list = [...list];
-    if (s.sort === "popular") list.sort((a, b) => b.installsWeek - a.installsWeek);
-    else if (s.sort === "quality") list.sort((a, b) => b.rating - a.rating || b.score - a.score);
+    // Stars are the headline metric while reviews are unreleased.
+    if (s.sort === "popular") list.sort((a, b) => b.stars - a.stars || b.installsWeek - a.installsWeek);
     else if (s.sort === "recent") list.sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
     return list;
 }
@@ -498,7 +500,6 @@ export function packageScreen(s: AppState): string {
     };
     const tabs = [
         tabEl("readme", "Readme"),
-        tabEl("reviews", `Reviews · ${s.reviewsSummary.count || p.ratingCount}`),
         tabEl("comments", `Comments · ${s.comments.length}`),
         tabEl("issues", `Issues · ${openIssueCount}`),
         tabEl("versions", `Versions · ${p.versions.length}`),
@@ -528,7 +529,7 @@ export function packageScreen(s: AppState): string {
   </div>
   <p style="font-size:17px;line-height:1.6;color:${C.soft};margin:0 0 14px;max-width:680px">${esc(p.description)}</p>
   <div style="display:flex;align-items:center;gap:18px;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:${C.muted};margin:0 0 28px;flex-wrap:wrap">
-    <a href="${pkgPath(p)}" data-act="tab" data-arg="reviews" style="text-decoration:none;display:inline-flex;align-items:center;gap:7px"><span style="font-size:14px;letter-spacing:1px;color:${tier(p.score)}">${starStr(p.rating)}</span><span style="color:${C.dim}">${p.rating}</span><span>${p.ratingCount} ratings</span></a>
+    <span style="display:inline-flex;align-items:center;gap:7px">${starMetric(p, 14)}<span>stars</span></span>
     <span>${p.subpackages.length} subpackage${p.subpackages.length === 1 ? "" : "s"}</span>
     <span>${p.license || "—"}</span>
   </div>
@@ -1412,8 +1413,8 @@ function acctStars(s: AppState): string {
                 <p style="font-size:13px;color:${C.soft};margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.description)}</p>
               </div>
               <div style="text-align:right;white-space:nowrap">
-                <div style="font-size:12px;letter-spacing:1px;color:${tier(p.score)}">${starStr(p.rating)}</div>
-                <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted};margin-top:3px">★ ${p.stars.toLocaleString()} · ↓ ${esc(p.installsWeekLabel)}/wk</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:${C.lilac}">★ ${p.stars.toLocaleString()}</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted};margin-top:3px">↓ ${esc(p.installsWeekLabel)}/wk</div>
               </div>
             </a>`,
             )

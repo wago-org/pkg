@@ -6,7 +6,7 @@ import type { Comment, Issue, InstallPoint, Package, Registry, Review, User, Vie
 
 export type Screen = "home" | "search" | "package" | "auth" | "account" | "user";
 export type PkgTab = "readme" | "reviews" | "comments" | "issues" | "versions" | "subpackages";
-export type Sort = "popular" | "quality" | "recent";
+export type Sort = "popular" | "recent";
 export type AcctTab = "profile" | "plugins" | "stars" | "settings";
 
 export interface AppState {
