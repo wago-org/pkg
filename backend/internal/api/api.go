@@ -135,6 +135,8 @@ func (a *App) NewRouter() http.Handler {
 	mux.HandleFunc("GET /api/health", a.handleHealth)
 
 	// Auth.
+	mux.HandleFunc("GET /api/auth/github/client", a.handleGithubClient)
+	mux.HandleFunc("POST /api/auth/github/exchange", a.handleGithubExchange)
 	mux.HandleFunc("GET /auth/github/login", a.handleLogin)
 	mux.HandleFunc("GET /auth/cli/login", a.handleCLILogin)
 	mux.HandleFunc("GET /auth/github/callback", a.handleCallback)
