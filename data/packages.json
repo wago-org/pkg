@@ -1,29 +1,51 @@
 {
   "schema": "wago-registry/v1",
   "generated": "seed",
-  "seedUsers": [
-    { "login": "wago-org", "name": "The wago authors", "bg": "#c3a8ff" },
-    { "login": "achen", "name": "A. Chen", "bg": "#c3a8ff" },
-    { "login": "rokafor", "name": "R. Okafor", "bg": "#74e0ad" },
-    { "login": "msilva", "name": "M. Silva", "bg": "#ff9ec4" },
-    { "login": "lena", "name": "Lena K.", "bg": "#c3a8ff" },
-    { "login": "devon", "name": "Devon M.", "bg": "#74e0ad" },
-    { "login": "priya", "name": "Priya S.", "bg": "#ff9ec4" },
-    { "login": "nkoval", "name": "N. Koval", "bg": "#7bd0ff" },
-    { "login": "jreyes", "name": "Jordan Reyes", "bg": "#c3a8ff" }
-  ],
   "stats": [
-    { "value": "1,240", "label": "packages" },
-    { "value": "4.2M", "label": "installs / week" },
-    { "value": "318", "label": "contributors" }
+    {
+      "value": "6",
+      "label": "packages"
+    },
+    {
+      "value": "0",
+      "label": "installs / week"
+    },
+    {
+      "value": "7",
+      "label": "contributors"
+    }
   ],
   "categories": [
-    { "key": "host-imports", "label": "Host imports", "count": 412 },
-    { "key": "wasi", "label": "WASI", "count": 186 },
-    { "key": "memory", "label": "Memory", "count": 94 },
-    { "key": "debugging", "label": "Debugging", "count": 73 },
-    { "key": "codegen", "label": "Codegen", "count": 38 },
-    { "key": "formats", "label": "Formats", "count": 120 }
+    {
+      "key": "host-imports",
+      "label": "Host imports",
+      "count": 412
+    },
+    {
+      "key": "wasi",
+      "label": "WASI",
+      "count": 186
+    },
+    {
+      "key": "memory",
+      "label": "Memory",
+      "count": 94
+    },
+    {
+      "key": "debugging",
+      "label": "Debugging",
+      "count": 73
+    },
+    {
+      "key": "codegen",
+      "label": "Codegen",
+      "count": 38
+    },
+    {
+      "key": "formats",
+      "label": "Formats",
+      "count": 120
+    }
   ],
   "packages": [
     {
@@ -31,8 +53,20 @@
       "short": "wasi",
       "description": "WASI host-import extensions for wago — preview-1 and unstable syscall surfaces: stdio, args/env, clock, random, exit.",
       "category": "wasi",
-      "tags": ["wasi", "host-imports", "syscall", "posix", "stdio"],
-      "keywords": ["wasi", "wasi-preview1", "syscall", "posix", "stdio"],
+      "tags": [
+        "wasi",
+        "host-imports",
+        "syscall",
+        "posix",
+        "stdio"
+      ],
+      "keywords": [
+        "wasi",
+        "wasi-preview1",
+        "syscall",
+        "posix",
+        "stdio"
+      ],
       "license": "Apache-2.0",
       "repository": "https://github.com/wago-org/wasi",
       "homepage": "https://github.com/wago-org/wasi",
@@ -41,12 +75,31 @@
       "official": true,
       "ownerLogin": "wago-org",
       "compatibility": {
-        "engines": { "wago": ">=0.1.0", "tinygo": "*", "go": ">=1.22" },
-        "platforms": ["linux/amd64"]
+        "engines": {
+          "wago": ">=0.1.0",
+          "tinygo": "*",
+          "go": ">=1.22"
+        },
+        "platforms": [
+          "linux/amd64"
+        ]
       },
-      "capabilities": ["wasi", "fs.read", "fs.write"],
-      "authors": [{ "name": "The wago authors", "github": "wago-org" }],
-      "contributors": ["achen", "rokafor", "msilva"],
+      "capabilities": [
+        "wasi",
+        "fs.read",
+        "fs.write"
+      ],
+      "authors": [
+        {
+          "name": "The wago authors",
+          "github": "wago-org"
+        }
+      ],
+      "contributors": [
+        "achen",
+        "rokafor",
+        "msilva"
+      ],
       "subpackages": [
         {
           "import": "github.com/wago-org/wasi/p1",
@@ -55,8 +108,22 @@
           "version": "1.0.0",
           "description": "Minimal wasi_snapshot_preview1: stdio, args/env, clock, random, exit.",
           "stability": "stable",
-          "tags": ["wasi", "wasi-preview1", "syscall", "posix", "stdio"],
-          "compatibility": { "engines": { "tinygo": "*", "wago": ">=0.1.0" }, "platforms": ["linux/amd64"] }
+          "tags": [
+            "wasi",
+            "wasi-preview1",
+            "syscall",
+            "posix",
+            "stdio"
+          ],
+          "compatibility": {
+            "engines": {
+              "tinygo": "*",
+              "wago": ">=0.1.0"
+            },
+            "platforms": [
+              "linux/amd64"
+            ]
+          }
         },
         {
           "import": "github.com/wago-org/wasi/unstable",
@@ -65,39 +132,68 @@
           "version": "1.0.0",
           "description": "Pre-preview1 wasi_unstable: stdio, args/env, clock, random, exit.",
           "stability": "deprecated",
-          "tags": ["wasi", "wasi-unstable", "snapshot0", "syscall", "posix"],
-          "compatibility": { "engines": { "tinygo": "*", "wago": ">=0.1.0" }, "platforms": ["linux/amd64"] }
+          "tags": [
+            "wasi",
+            "wasi-unstable",
+            "snapshot0",
+            "syscall",
+            "posix"
+          ],
+          "compatibility": {
+            "engines": {
+              "tinygo": "*",
+              "wago": ">=0.1.0"
+            },
+            "platforms": [
+              "linux/amd64"
+            ]
+          }
         }
       ],
-      "rating": 4.7,
-      "ratingCount": 214,
-      "score": 96,
-      "installBaseWeek": 48200,
-      "stars": 1284,
-      "forks": 87,
+      "rating": 0,
+      "ratingCount": 0,
+      "score": 0,
+      "installBaseWeek": 0,
+      "stars": 0,
+      "forks": 0,
       "unpackedKB": 184,
       "versions": [
-        { "version": "v1.0.0", "commit": "9f3c1a2e7b41", "publishedAt": "2026-06-30T10:12:00Z", "notes": "First stable release of the preview-1 and unstable extensions.", "unpackedKB": 184, "latest": true, "installShare": 62 },
-        { "version": "v0.9.1", "commit": "2b7d4c8a1f90", "publishedAt": "2026-06-09T08:40:00Z", "notes": "Patch: correct errno mapping for fd_write on closed descriptors.", "unpackedKB": 181, "latest": false, "installShare": 21 },
-        { "version": "v0.9.0", "commit": "c14e02fab377", "publishedAt": "2026-05-02T14:05:00Z", "notes": "Split unstable snapshot-0 into its own extension.", "unpackedKB": 176, "latest": false, "installShare": 12 },
-        { "version": "v0.8.2", "commit": "77a9be31c4d2", "publishedAt": "2026-02-18T09:20:00Z", "notes": "Final v0.8 — security backports only from here on.", "unpackedKB": 170, "latest": false, "installShare": 5 }
-      ],
-      "issues": [
-        { "num": 142, "title": "clock_time_get returns 0 under TinyGo 0.31", "state": "open", "labels": ["tinygo", "bug"], "comments": 6, "age": "2 days ago", "author": "nkoval" },
-        { "num": 139, "title": "Add fd_advise passthrough for large sequential reads", "state": "open", "labels": ["enhancement"], "comments": 3, "age": "5 days ago", "author": "lena" },
-        { "num": 137, "title": "Document the sandbox permission model", "state": "open", "labels": ["docs", "good first issue"], "comments": 1, "age": "1 week ago", "author": "devon" },
-        { "num": 131, "title": "poll_oneoff should return ENOTSUP, not panic, on TinyGo", "state": "open", "labels": ["tinygo"], "comments": 9, "age": "2 weeks ago", "author": "priya" },
-        { "num": 128, "title": "Data race in concurrent stdout writes", "state": "closed", "labels": ["bug"], "comments": 12, "age": "3 weeks ago", "author": "achen" },
-        { "num": 120, "title": "v1 migration guide", "state": "closed", "labels": ["docs"], "comments": 4, "age": "1 month ago", "author": "rokafor" }
-      ],
-      "seedReviews": [
-        { "login": "lena", "rating": 5, "createdAt": "2026-07-03T11:00:00Z", "body": "Dropped it into our build pipeline and the sandbox just worked — zero real-disk surprises.", "score": 24 },
-        { "login": "devon", "rating": 4, "createdAt": "2026-06-29T09:30:00Z", "body": "Solid WASI coverage. Would love richer clock support under TinyGo, but stdio and args are rock solid.", "score": 9 },
-        { "login": "priya", "rating": 5, "createdAt": "2026-06-22T16:15:00Z", "body": "Best-documented host-import bundle in the registry. Copy-pasted the usage example and it ran first try.", "score": 41 }
-      ],
-      "seedComments": [
-        { "login": "nkoval", "createdAt": "2026-07-04T12:00:00Z", "body": "Does the preview-1 extension expose fd_readdir yet, or is that on the roadmap?" },
-        { "login": "rokafor", "createdAt": "2026-07-04T13:20:00Z", "body": "Not yet — tracked in #139. It'll land alongside the fd_advise work.", "parentIndex": 0 }
+        {
+          "version": "v1.0.0",
+          "commit": "9f3c1a2e7b41",
+          "publishedAt": "2026-06-30T10:12:00Z",
+          "notes": "First stable release of the preview-1 and unstable extensions.",
+          "unpackedKB": 184,
+          "latest": true,
+          "installShare": 62
+        },
+        {
+          "version": "v0.9.1",
+          "commit": "2b7d4c8a1f90",
+          "publishedAt": "2026-06-09T08:40:00Z",
+          "notes": "Patch: correct errno mapping for fd_write on closed descriptors.",
+          "unpackedKB": 181,
+          "latest": false,
+          "installShare": 21
+        },
+        {
+          "version": "v0.9.0",
+          "commit": "c14e02fab377",
+          "publishedAt": "2026-05-02T14:05:00Z",
+          "notes": "Split unstable snapshot-0 into its own extension.",
+          "unpackedKB": 176,
+          "latest": false,
+          "installShare": 12
+        },
+        {
+          "version": "v0.8.2",
+          "commit": "77a9be31c4d2",
+          "publishedAt": "2026-02-18T09:20:00Z",
+          "notes": "Final v0.8 — security backports only from here on.",
+          "unpackedKB": 170,
+          "latest": false,
+          "installShare": 5
+        }
       ]
     },
     {
@@ -105,20 +201,44 @@
       "short": "dragline-x64",
       "description": "Optimizing x86-64 codegen backend — SSA, DCE and graph-coloring register allocation.",
       "category": "codegen",
-      "tags": ["codegen", "backend"],
-      "keywords": ["codegen", "backend", "x86-64", "ssa", "regalloc"],
+      "tags": [
+        "codegen",
+        "backend"
+      ],
+      "keywords": [
+        "codegen",
+        "backend",
+        "x86-64",
+        "ssa",
+        "regalloc"
+      ],
       "license": "Apache-2.0",
       "repository": "https://github.com/wago-org/dragline-x64",
       "stability": "experimental",
       "verified": true,
       "ownerLogin": "jreyes",
       "compatibility": {
-        "engines": { "wago": ">=0.1.0", "go": ">=1.22" },
-        "platforms": ["linux/amd64", "darwin/arm64"]
+        "engines": {
+          "wago": ">=0.1.0",
+          "go": ">=1.22"
+        },
+        "platforms": [
+          "linux/amd64",
+          "darwin/arm64"
+        ]
       },
-      "capabilities": ["compiler.codegen"],
-      "authors": [{ "name": "Jordan Reyes", "github": "jreyes" }],
-      "contributors": ["nkoval"],
+      "capabilities": [
+        "compiler.codegen"
+      ],
+      "authors": [
+        {
+          "name": "Jordan Reyes",
+          "github": "jreyes"
+        }
+      ],
+      "contributors": [
+        "nkoval"
+      ],
       "subpackages": [
         {
           "import": "github.com/wago-org/dragline-x64",
@@ -127,24 +247,57 @@
           "version": "0.9.4",
           "description": "Optimizing SSA-based x86-64 backend with graph-coloring regalloc.",
           "stability": "experimental",
-          "tags": ["codegen", "backend"],
-          "compatibility": { "engines": { "wago": ">=0.1.0", "go": ">=1.22" }, "platforms": ["linux/amd64", "darwin/arm64"] }
+          "tags": [
+            "codegen",
+            "backend"
+          ],
+          "compatibility": {
+            "engines": {
+              "wago": ">=0.1.0",
+              "go": ">=1.22"
+            },
+            "platforms": [
+              "linux/amd64",
+              "darwin/arm64"
+            ]
+          }
         }
       ],
-      "rating": 4.9,
-      "ratingCount": 96,
-      "score": 93,
-      "installBaseWeek": 31700,
-      "stars": 742,
-      "forks": 41,
+      "rating": 0,
+      "ratingCount": 0,
+      "score": 0,
+      "installBaseWeek": 0,
+      "stars": 0,
+      "forks": 0,
       "unpackedKB": 512,
       "versions": [
-        { "version": "v0.9.4", "commit": "5e1077aa9c34", "publishedAt": "2026-07-01T18:00:00Z", "notes": "Improve graph-coloring spill heuristics; ~8% faster codegen on hot loops.", "unpackedKB": 512, "latest": true, "installShare": 71 },
-        { "version": "v0.9.0", "commit": "13ffb6720ad1", "publishedAt": "2026-06-05T10:00:00Z", "notes": "New SSA construction pass and dead-code elimination.", "unpackedKB": 498, "latest": false, "installShare": 22 },
-        { "version": "v0.8.1", "commit": "aa0291c7de55", "publishedAt": "2026-04-10T09:00:00Z", "notes": "Fix register clobbering on SysV ABI calls.", "unpackedKB": 470, "latest": false, "installShare": 7 }
-      ],
-      "seedReviews": [
-        { "login": "nkoval", "rating": 5, "createdAt": "2026-06-28T10:00:00Z", "body": "The regalloc quality is genuinely impressive for a young backend. Benchmarks match the claims.", "score": 17 }
+        {
+          "version": "v0.9.4",
+          "commit": "5e1077aa9c34",
+          "publishedAt": "2026-07-01T18:00:00Z",
+          "notes": "Improve graph-coloring spill heuristics; ~8% faster codegen on hot loops.",
+          "unpackedKB": 512,
+          "latest": true,
+          "installShare": 71
+        },
+        {
+          "version": "v0.9.0",
+          "commit": "13ffb6720ad1",
+          "publishedAt": "2026-06-05T10:00:00Z",
+          "notes": "New SSA construction pass and dead-code elimination.",
+          "unpackedKB": 498,
+          "latest": false,
+          "installShare": 22
+        },
+        {
+          "version": "v0.8.1",
+          "commit": "aa0291c7de55",
+          "publishedAt": "2026-04-10T09:00:00Z",
+          "notes": "Fix register clobbering on SysV ABI calls.",
+          "unpackedKB": 470,
+          "latest": false,
+          "installShare": 7
+        }
       ]
     },
     {
@@ -152,20 +305,40 @@
       "short": "wago-trace",
       "description": "Step debugger & instruction tracer with a live stack/memory inspector.",
       "category": "debugging",
-      "tags": ["debugging", "devtools"],
-      "keywords": ["debugging", "devtools", "tracer", "inspector"],
+      "tags": [
+        "debugging",
+        "devtools"
+      ],
+      "keywords": [
+        "debugging",
+        "devtools",
+        "tracer",
+        "inspector"
+      ],
       "license": "MIT",
       "repository": "https://github.com/wago-org/wago-trace",
       "stability": "stable",
       "verified": true,
       "ownerLogin": "msilva",
       "compatibility": {
-        "engines": { "wago": ">=0.1.0", "go": ">=1.22" },
+        "engines": {
+          "wago": ">=0.1.0",
+          "go": ">=1.22"
+        },
         "platforms": []
       },
-      "capabilities": ["metrics.write"],
-      "authors": [{ "name": "M. Silva", "github": "msilva" }],
-      "contributors": ["jreyes"],
+      "capabilities": [
+        "metrics.write"
+      ],
+      "authors": [
+        {
+          "name": "M. Silva",
+          "github": "msilva"
+        }
+      ],
+      "contributors": [
+        "jreyes"
+      ],
       "subpackages": [
         {
           "import": "github.com/wago-org/wago-trace",
@@ -174,24 +347,54 @@
           "version": "1.4.2",
           "description": "Instruction tracer + stepping debugger with a live inspector.",
           "stability": "stable",
-          "tags": ["debugging", "devtools"],
-          "compatibility": { "engines": { "wago": ">=0.1.0", "go": ">=1.22" }, "platforms": [] }
+          "tags": [
+            "debugging",
+            "devtools"
+          ],
+          "compatibility": {
+            "engines": {
+              "wago": ">=0.1.0",
+              "go": ">=1.22"
+            },
+            "platforms": []
+          }
         }
       ],
-      "rating": 4.5,
-      "ratingCount": 132,
-      "score": 90,
-      "installBaseWeek": 22900,
-      "stars": 908,
-      "forks": 52,
+      "rating": 0,
+      "ratingCount": 0,
+      "score": 0,
+      "installBaseWeek": 0,
+      "stars": 0,
+      "forks": 0,
       "unpackedKB": 96,
       "versions": [
-        { "version": "v1.4.2", "commit": "cc41982beef0", "publishedAt": "2026-06-27T09:00:00Z", "notes": "Live memory inspector now diffs between steps.", "unpackedKB": 96, "latest": true, "installShare": 68 },
-        { "version": "v1.4.0", "commit": "72b0a1c9d4e3", "publishedAt": "2026-06-01T09:00:00Z", "notes": "Add conditional breakpoints on instruction opcodes.", "unpackedKB": 92, "latest": false, "installShare": 24 },
-        { "version": "v1.3.0", "commit": "0a5f7712bb88", "publishedAt": "2026-03-05T09:00:00Z", "notes": "Stack unwinding for trap frames.", "unpackedKB": 88, "latest": false, "installShare": 8 }
-      ],
-      "seedReviews": [
-        { "login": "devon", "rating": 4, "createdAt": "2026-06-20T09:00:00Z", "body": "The live inspector is a lifesaver when a guest traps deep in a call stack.", "score": 12 }
+        {
+          "version": "v1.4.2",
+          "commit": "cc41982beef0",
+          "publishedAt": "2026-06-27T09:00:00Z",
+          "notes": "Live memory inspector now diffs between steps.",
+          "unpackedKB": 96,
+          "latest": true,
+          "installShare": 68
+        },
+        {
+          "version": "v1.4.0",
+          "commit": "72b0a1c9d4e3",
+          "publishedAt": "2026-06-01T09:00:00Z",
+          "notes": "Add conditional breakpoints on instruction opcodes.",
+          "unpackedKB": 92,
+          "latest": false,
+          "installShare": 24
+        },
+        {
+          "version": "v1.3.0",
+          "commit": "0a5f7712bb88",
+          "publishedAt": "2026-03-05T09:00:00Z",
+          "notes": "Stack unwinding for trap frames.",
+          "unpackedKB": 88,
+          "latest": false,
+          "installShare": 8
+        }
       ]
     },
     {
@@ -199,19 +402,41 @@
       "short": "host-http",
       "description": "Expose a Go net/http client to guest modules as batched host imports.",
       "category": "host-imports",
-      "tags": ["host-imports", "net"],
-      "keywords": ["host-imports", "net", "http", "client"],
+      "tags": [
+        "host-imports",
+        "net"
+      ],
+      "keywords": [
+        "host-imports",
+        "net",
+        "http",
+        "client"
+      ],
       "license": "Apache-2.0",
       "repository": "https://github.com/wago-org/host-http",
       "stability": "experimental",
       "verified": false,
       "ownerLogin": "rokafor",
       "compatibility": {
-        "engines": { "wago": ">=0.1.0", "tinygo": ">=0.31", "go": ">=1.22" },
-        "platforms": ["linux/amd64"]
+        "engines": {
+          "wago": ">=0.1.0",
+          "tinygo": ">=0.31",
+          "go": ">=1.22"
+        },
+        "platforms": [
+          "linux/amd64"
+        ]
       },
-      "capabilities": ["net.outbound", "http.client"],
-      "authors": [{ "name": "R. Okafor", "github": "rokafor" }],
+      "capabilities": [
+        "net.outbound",
+        "http.client"
+      ],
+      "authors": [
+        {
+          "name": "R. Okafor",
+          "github": "rokafor"
+        }
+      ],
       "contributors": [],
       "subpackages": [
         {
@@ -221,20 +446,48 @@
           "version": "1.0.1",
           "description": "Batched net/http client host imports for guest modules.",
           "stability": "experimental",
-          "tags": ["host-imports", "net"],
-          "compatibility": { "engines": { "wago": ">=0.1.0", "tinygo": ">=0.31", "go": ">=1.22" }, "platforms": ["linux/amd64"] }
+          "tags": [
+            "host-imports",
+            "net"
+          ],
+          "compatibility": {
+            "engines": {
+              "wago": ">=0.1.0",
+              "tinygo": ">=0.31",
+              "go": ">=1.22"
+            },
+            "platforms": [
+              "linux/amd64"
+            ]
+          }
         }
       ],
-      "rating": 4.1,
-      "ratingCount": 58,
-      "score": 84,
-      "installBaseWeek": 18300,
-      "stars": 331,
-      "forks": 19,
+      "rating": 0,
+      "ratingCount": 0,
+      "score": 0,
+      "installBaseWeek": 0,
+      "stars": 0,
+      "forks": 0,
       "unpackedKB": 64,
       "versions": [
-        { "version": "v1.0.1", "commit": "e88ffa10b2c7", "publishedAt": "2026-07-03T09:00:00Z", "notes": "Batch request coalescing to cut host round-trips.", "unpackedKB": 64, "latest": true, "installShare": 80 },
-        { "version": "v1.0.0", "commit": "1204ab7799ee", "publishedAt": "2026-05-08T09:00:00Z", "notes": "First stable release of the batched host-http ABI.", "unpackedKB": 61, "latest": false, "installShare": 20 }
+        {
+          "version": "v1.0.1",
+          "commit": "e88ffa10b2c7",
+          "publishedAt": "2026-07-03T09:00:00Z",
+          "notes": "Batch request coalescing to cut host round-trips.",
+          "unpackedKB": 64,
+          "latest": true,
+          "installShare": 80
+        },
+        {
+          "version": "v1.0.0",
+          "commit": "1204ab7799ee",
+          "publishedAt": "2026-05-08T09:00:00Z",
+          "notes": "First stable release of the batched host-http ABI.",
+          "unpackedKB": 61,
+          "latest": false,
+          "installShare": 20
+        }
       ]
     },
     {
@@ -242,20 +495,39 @@
       "short": "memfmt",
       "description": "Zero-copy struct (de)serialization helpers over linear memory []byte.",
       "category": "memory",
-      "tags": ["memory", "codec"],
-      "keywords": ["memory", "codec", "zero-copy", "serialization"],
+      "tags": [
+        "memory",
+        "codec"
+      ],
+      "keywords": [
+        "memory",
+        "codec",
+        "zero-copy",
+        "serialization"
+      ],
       "license": "BSD-3-Clause",
       "repository": "https://github.com/wago-org/memfmt",
       "stability": "stable",
       "verified": true,
       "ownerLogin": "achen",
       "compatibility": {
-        "engines": { "wago": ">=0.1.0", "tinygo": "*", "go": ">=1.22" },
+        "engines": {
+          "wago": ">=0.1.0",
+          "tinygo": "*",
+          "go": ">=1.22"
+        },
         "platforms": []
       },
       "capabilities": [],
-      "authors": [{ "name": "A. Chen", "github": "achen" }],
-      "contributors": ["msilva"],
+      "authors": [
+        {
+          "name": "A. Chen",
+          "github": "achen"
+        }
+      ],
+      "contributors": [
+        "msilva"
+      ],
       "subpackages": [
         {
           "import": "github.com/wago-org/memfmt",
@@ -264,20 +536,46 @@
           "version": "0.7.0",
           "description": "Zero-copy (de)serialization over linear memory.",
           "stability": "stable",
-          "tags": ["memory", "codec"],
-          "compatibility": { "engines": { "wago": ">=0.1.0", "tinygo": "*", "go": ">=1.22" }, "platforms": [] }
+          "tags": [
+            "memory",
+            "codec"
+          ],
+          "compatibility": {
+            "engines": {
+              "wago": ">=0.1.0",
+              "tinygo": "*",
+              "go": ">=1.22"
+            },
+            "platforms": []
+          }
         }
       ],
-      "rating": 4.4,
-      "ratingCount": 73,
-      "score": 88,
-      "installBaseWeek": 15600,
-      "stars": 612,
-      "forks": 28,
+      "rating": 0,
+      "ratingCount": 0,
+      "score": 0,
+      "installBaseWeek": 0,
+      "stars": 0,
+      "forks": 0,
       "unpackedKB": 40,
       "versions": [
-        { "version": "v0.7.0", "commit": "4d9012ce77a1", "publishedAt": "2026-07-02T09:00:00Z", "notes": "Add slice-of-struct fast path; fewer bounds checks.", "unpackedKB": 40, "latest": true, "installShare": 74 },
-        { "version": "v0.6.0", "commit": "b6720fa4419c", "publishedAt": "2026-05-20T09:00:00Z", "notes": "Endianness-aware decoders.", "unpackedKB": 37, "latest": false, "installShare": 26 }
+        {
+          "version": "v0.7.0",
+          "commit": "4d9012ce77a1",
+          "publishedAt": "2026-07-02T09:00:00Z",
+          "notes": "Add slice-of-struct fast path; fewer bounds checks.",
+          "unpackedKB": 40,
+          "latest": true,
+          "installShare": 74
+        },
+        {
+          "version": "v0.6.0",
+          "commit": "b6720fa4419c",
+          "publishedAt": "2026-05-20T09:00:00Z",
+          "notes": "Endianness-aware decoders.",
+          "unpackedKB": 37,
+          "latest": false,
+          "installShare": 26
+        }
       ]
     },
     {
@@ -285,19 +583,35 @@
       "short": "wat-loader",
       "description": "Parse & assemble .wat text format straight into wago modules.",
       "category": "formats",
-      "tags": ["formats", "parser"],
-      "keywords": ["formats", "parser", "wat", "assembler"],
+      "tags": [
+        "formats",
+        "parser"
+      ],
+      "keywords": [
+        "formats",
+        "parser",
+        "wat",
+        "assembler"
+      ],
       "license": "MIT",
       "repository": "https://github.com/wago-org/wat-loader",
       "stability": "stable",
       "verified": false,
       "ownerLogin": "devon",
       "compatibility": {
-        "engines": { "wago": ">=0.1.0", "go": ">=1.22" },
+        "engines": {
+          "wago": ">=0.1.0",
+          "go": ">=1.22"
+        },
         "platforms": []
       },
       "capabilities": [],
-      "authors": [{ "name": "Devon M.", "github": "devon" }],
+      "authors": [
+        {
+          "name": "Devon M.",
+          "github": "devon"
+        }
+      ],
       "contributors": [],
       "subpackages": [
         {
@@ -307,20 +621,45 @@
           "version": "1.2.0",
           "description": "Parse and assemble the .wat text format into wago modules.",
           "stability": "stable",
-          "tags": ["formats", "parser"],
-          "compatibility": { "engines": { "wago": ">=0.1.0", "go": ">=1.22" }, "platforms": [] }
+          "tags": [
+            "formats",
+            "parser"
+          ],
+          "compatibility": {
+            "engines": {
+              "wago": ">=0.1.0",
+              "go": ">=1.22"
+            },
+            "platforms": []
+          }
         }
       ],
-      "rating": 3.8,
-      "ratingCount": 41,
-      "score": 79,
-      "installBaseWeek": 12100,
-      "stars": 254,
-      "forks": 15,
+      "rating": 0,
+      "ratingCount": 0,
+      "score": 0,
+      "installBaseWeek": 0,
+      "stars": 0,
+      "forks": 0,
       "unpackedKB": 72,
       "versions": [
-        { "version": "v1.2.0", "commit": "a1c0ff42be91", "publishedAt": "2026-06-22T09:00:00Z", "notes": "Support folded instruction syntax and inline exports.", "unpackedKB": 72, "latest": true, "installShare": 77 },
-        { "version": "v1.1.0", "commit": "77de01a2c3b4", "publishedAt": "2026-04-14T09:00:00Z", "notes": "Assemble directly to wago module structs.", "unpackedKB": 68, "latest": false, "installShare": 23 }
+        {
+          "version": "v1.2.0",
+          "commit": "a1c0ff42be91",
+          "publishedAt": "2026-06-22T09:00:00Z",
+          "notes": "Support folded instruction syntax and inline exports.",
+          "unpackedKB": 72,
+          "latest": true,
+          "installShare": 77
+        },
+        {
+          "version": "v1.1.0",
+          "commit": "77de01a2c3b4",
+          "publishedAt": "2026-04-14T09:00:00Z",
+          "notes": "Assemble directly to wago module structs.",
+          "unpackedKB": 68,
+          "latest": false,
+          "installShare": 23
+        }
       ]
     }
   ]

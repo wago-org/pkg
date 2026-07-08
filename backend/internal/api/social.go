@@ -113,6 +113,7 @@ type reviewView struct {
 	PackageShort string  `json:"packageShort"`
 	UserID       string  `json:"userId"`
 	Author       string  `json:"author"`
+	Login        string  `json:"login"`
 	AvatarURL    string  `json:"avatarUrl"`
 	Rating       int     `json:"rating"`
 	Body         string  `json:"body"`
@@ -133,6 +134,7 @@ func (a *App) buildReviewView(rv model.Review, viewerID string) reviewView {
 		PackageShort: rv.PackageShort,
 		UserID:       rv.UserID,
 		Author:       firstNonEmpty(author.Name, author.Login),
+		Login:        author.Login,
 		AvatarURL:    author.AvatarURL,
 		Rating:       rv.Rating,
 		Body:         rv.Body,
@@ -269,6 +271,7 @@ type commentView struct {
 	PackageShort string  `json:"packageShort"`
 	UserID       string  `json:"userId"`
 	Author       string  `json:"author"`
+	Login        string  `json:"login"`
 	AvatarURL    string  `json:"avatarUrl"`
 	Body         string  `json:"body"`
 	CreatedAt    string  `json:"createdAt"`
@@ -293,6 +296,7 @@ func (a *App) buildCommentView(c model.Comment, viewerID string, canModerate boo
 		PackageShort: c.PackageShort,
 		UserID:       c.UserID,
 		Author:       firstNonEmpty(author.Name, author.Login),
+		Login:        author.Login,
 		AvatarURL:    author.AvatarURL,
 		Body:         c.Body,
 		CreatedAt:    c.CreatedAt,
