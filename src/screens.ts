@@ -1040,11 +1040,9 @@ function versionRow(p: Package, v: VersionRow, first: boolean): string {
 function pkgSidebar(s: AppState): string {
     const p = s.pkg!;
     const counts = s.installSeries.map((pt) => pt.count);
+    const hasInstalls = counts.some((c) => c > 0);
     const max = Math.max(1, ...counts);
-    const norm = counts.length
-        ? counts.map((c) => (c / max) * 100)
-        : [40, 52, 38, 60, 55, 72, 64, 80, 70, 88, 76, 95];
-    const spark = sparkline(norm);
+    const spark = hasInstalls ? sparkline(counts.map((c) => (c / max) * 100)) : null;
     const installCmd = `wago pkg add ${p.name}`;
 
     // A metadata cell (label + value); rendered full-width or half-width.
@@ -1142,13 +1140,17 @@ function pkgSidebar(s: AppState): string {
           <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;color:${C.muted};text-transform:uppercase">Weekly installs</div>
           <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${C.lilac}">${esc(weekLabel)}</div>
         </div>
-        <div style="height:44px">
-          <svg viewBox="0 0 100 40" preserveAspectRatio="none" style="width:100%;height:100%;overflow:visible">
+        <div style="height:44px;display:flex;align-items:center">
+          ${
+              spark
+                  ? `<svg viewBox="0 0 100 40" preserveAspectRatio="none" style="width:100%;height:100%;overflow:visible">
             <defs><linearGradient id="sparkfill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${C.lilac}" stop-opacity="0.35"></stop><stop offset="1" stop-color="${C.lilac}" stop-opacity="0"></stop></linearGradient></defs>
             <path d="${spark.area}" fill="url(#sparkfill)"></path>
             <polyline points="${spark.points}" fill="none" stroke="${C.lilac}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></polyline>
             <circle cx="${spark.endX}" cy="${spark.endY}" r="2.6" fill="${C.green}"></circle>
-          </svg>
+          </svg>`
+                  : `<span style="font-size:12px;color:${C.muted}">No install history yet.</span>`
+          }
         </div>
       </div>
       ${metaRows}

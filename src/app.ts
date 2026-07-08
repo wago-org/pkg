@@ -3,7 +3,6 @@
 // everything that mutates state and asks for a re-render lives here.
 
 import * as api from "./api.js";
-import { backendMode } from "./api.js";
 import { copyFrom } from "./copy.js";
 import * as github from "./github.js";
 import { initMarkdown } from "./markdown.js";
@@ -418,17 +417,9 @@ function paintPicker(active: number): void {
 
 // ── actions ──────────────────────────────────────────────────────────────────
 
-async function doSignIn(): Promise<void> {
-    // Always use real GitHub OAuth. The only exception is localhost with no
-    // backend running, where a faked demo session keeps the UI explorable.
-    const host = location.hostname;
-    const isLocalhost = host === "localhost" || host === "127.0.0.1";
-    if (backendMode() === "remote" || !isLocalhost) {
-        window.location.href = api.signInUrl(location.href);
-        return;
-    }
-    state.user = await api.localSignIn();
-    navAccount("profile");
+function doSignIn(): void {
+    // Always real GitHub OAuth via the backend.
+    window.location.href = api.signInUrl(location.href);
 }
 
 async function doSignOut(): Promise<void> {
@@ -1162,7 +1153,6 @@ export async function init(): Promise<void> {
     // Load the markdown renderer up front; re-render once ready so any already
     // painted bodies switch from the escaped-text fallback to rendered HTML.
     void initMarkdown().then(() => render());
-    await api.probeBackend();
     try {
         state.registry = await api.loadRegistry();
     } catch (err) {

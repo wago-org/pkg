@@ -1,8 +1,7 @@
 // Shared data shapes for the registry frontend. These mirror the wago-plugin/v1
 // manifest model (a package is a Go module shipping one or more subpackages) plus
-// the derived fields the Go backend adds. The static data/packages.json ships
-// the same shapes (minus derived fields, which the frontend fills in for the
-// no-backend demo mode).
+// the derived fields the Go backend adds. The static data/packages.json ships the
+// catalog taxonomy and a fallback package list in the same shapes.
 
 export type Stability = "experimental" | "stable" | "deprecated";
 
