@@ -26,6 +26,7 @@ export interface AppState {
     sub: string | null; // id of the subpackage whose page is open (else null)
     readme: string | null; // the package repo's README markdown, fetched from GitHub
     readmeLoading: boolean;
+    readmeBase: { owner: string; repo: string; ref?: string } | null; // for resolving the README's relative image/link URLs
     reviews: Review[];
     reviewsSummary: { average: number; count: number };
     reviewsLoading: boolean;
@@ -100,6 +101,7 @@ export const state: AppState = {
     sub: null,
     readme: null,
     readmeLoading: false,
+    readmeBase: null,
     reviews: [],
     reviewsSummary: { average: 0, count: 0 },
     reviewsLoading: false,

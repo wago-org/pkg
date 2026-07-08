@@ -36,6 +36,38 @@ const ALLOWED_TAGS = [
 ];
 const ALLOWED_ATTR = ["href", "title", "align", "start"];
 
+// README bodies come from the package's own repo, so — like GitHub — we render
+// images, task-list checkboxes, <details>, and <kbd>. Comment/review bodies stay
+// on the strict list above.
+const RICH_TAGS = [...ALLOWED_TAGS, "img", "input", "details", "summary", "kbd", "picture", "source"];
+const RICH_ATTR = [...ALLOWED_ATTR, "src", "alt", "width", "height", "loading", "type", "checked", "disabled", "open", "srcset", "media"];
+
+// Options for a single render. base rewrites the README's relative image/link
+// URLs to GitHub (raw for images, blob for links) — exactly what GitHub does.
+export interface MdOptions {
+    images?: boolean; // allow <img> and other rich tags (README, not comments)
+    mentions?: boolean; // linkify @handles to in-app profiles (default true; off for READMEs)
+    base?: { owner: string; repo: string; ref?: string };
+}
+
+// Set for the duration of a rich render so the sanitize hook can resolve
+// relative URLs. Rendering is synchronous, so a module-level value is safe.
+let activeBase: MdOptions["base"] | null = null;
+
+// resolveRepoUrl turns a README-relative URL into an absolute GitHub URL, the way
+// GitHub renders them: images point at raw.githubusercontent.com, links at the
+// repo's blob view, both pinned to the release ref. Absolute URLs and in-page
+// anchors pass through untouched.
+function resolveRepoUrl(base: NonNullable<MdOptions["base"]>, url: string, image: boolean): string {
+    if (!url || url.startsWith("#")) return url;
+    if (/^[a-z][a-z0-9+.-]*:/i.test(url) || url.startsWith("//")) return url; // already absolute
+    const ref = base.ref || "HEAD";
+    const path = url.replace(/^\.\//, "").replace(/^\//, ""); // repo-root or dir relative
+    return image
+        ? `https://raw.githubusercontent.com/${base.owner}/${base.repo}/${ref}/${path}`
+        : `https://github.com/${base.owner}/${base.repo}/blob/${ref}/${path}`;
+}
+
 // initMarkdown loads the vendored libraries and configures them. It resolves
 // even on failure — renderMarkdown then keeps using the escaped-text fallback.
 export async function initMarkdown(): Promise<void> {
@@ -55,8 +87,22 @@ export async function initMarkdown(): Promise<void> {
         // Force external links to open safely in a new tab, but leave internal
         // in-app links (#/… — e.g. @mention profile links) navigating in place.
         purify.addHook("afterSanitizeAttributes", (node) => {
+            // In a README render, rewrite relative image/link URLs to GitHub.
+            if (activeBase && node.tagName === "IMG") {
+                const src = node.getAttribute("src") || "";
+                const abs = resolveRepoUrl(activeBase, src, true);
+                if (abs !== src) node.setAttribute("src", abs);
+                node.setAttribute("loading", "lazy");
+            }
             if (node.tagName === "A") {
-                const href = node.getAttribute("href") || "";
+                let href = node.getAttribute("href") || "";
+                if (activeBase) {
+                    const abs = resolveRepoUrl(activeBase, href, false);
+                    if (abs !== href) {
+                        node.setAttribute("href", abs);
+                        href = abs;
+                    }
+                }
                 // Internal in-app links (/{login}, /{owner}/{short}) navigate in
                 // place; everything else opens in a new tab.
                 if (href.startsWith("/") || href.startsWith("#")) {
@@ -93,24 +139,28 @@ function linkifyMentions(src: string): string {
 // renderMarkdown returns sanitized HTML for `src`. Before initMarkdown resolves,
 // or if the libraries failed to load, it returns escaped text wrapped in a
 // paragraph so plain content still shows (and stays inert).
-export function renderMarkdown(src: string): string {
+export function renderMarkdown(src: string, opts: MdOptions = {}): string {
     const input = src ?? "";
     if (!ready || !marked || !purify) {
         return `<p>${esc(input)}</p>`;
     }
+    const source = opts.mentions === false ? input : linkifyMentions(input);
+    activeBase = opts.base ?? null;
     try {
-        const rawHtml = marked(linkifyMentions(input));
+        const rawHtml = marked(source);
         return purify.sanitize(rawHtml, {
-            ALLOWED_TAGS,
-            ALLOWED_ATTR,
+            ALLOWED_TAGS: opts.images ? RICH_TAGS : ALLOWED_TAGS,
+            ALLOWED_ATTR: opts.images ? RICH_ATTR : ALLOWED_ATTR,
             ALLOW_DATA_ATTR: false,
         });
     } catch {
         return `<p>${esc(input)}</p>`;
+    } finally {
+        activeBase = null;
     }
 }
 
 // Wrap rendered markdown in the `.md` container the stylesheet targets.
-export function mdBlock(src: string): string {
-    return `<div class="md">${renderMarkdown(src)}</div>`;
+export function mdBlock(src: string, opts: MdOptions = {}): string {
+    return `<div class="md">${renderMarkdown(src, opts)}</div>`;
 }

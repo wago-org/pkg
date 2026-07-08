@@ -198,3 +198,138 @@ button {
 .md img {
     max-width: 100%;
 }
+
+/* README rendering — a fuller, GitHub-style document (roomier than the compact
+   comment `.md` above), adapted to the dark palette. */
+.readme .md {
+    font-size: 15px;
+    line-height: 1.7;
+    color: var(--dim);
+}
+.readme .md h1,
+.readme .md h2,
+.readme .md h3,
+.readme .md h4 {
+    margin: 24px 0 16px;
+    font-weight: 700;
+    line-height: 1.25;
+}
+.readme .md h1 {
+    font-size: 1.9em;
+    padding-bottom: 0.3em;
+    border-bottom: 1px solid var(--line);
+}
+.readme .md h2 {
+    font-size: 1.45em;
+    padding-bottom: 0.3em;
+    border-bottom: 1px solid var(--line);
+}
+.readme .md h3 {
+    font-size: 1.2em;
+}
+.readme .md h4 {
+    font-size: 1.02em;
+}
+.readme .md > :first-child {
+    margin-top: 0;
+}
+.readme .md p,
+.readme .md blockquote,
+.readme .md ul,
+.readme .md ol,
+.readme .md table,
+.readme .md pre {
+    margin: 0 0 16px;
+}
+.readme .md ul,
+.readme .md ol {
+    padding-left: 2em;
+}
+.readme .md li + li {
+    margin-top: 4px;
+}
+.readme .md li.task-list-item {
+    list-style: none;
+}
+.readme .md li.task-list-item > input,
+.readme .md input[type="checkbox"] {
+    margin: 0 6px 0 -1.4em;
+    vertical-align: middle;
+    accent-color: var(--lilac);
+}
+.readme .md a {
+    color: var(--lilac);
+    text-decoration: none;
+}
+.readme .md a:hover {
+    text-decoration: underline;
+}
+.readme .md code {
+    font-size: 0.85em;
+    background: color-mix(in srgb, var(--lilac) 12%, transparent);
+    border: none;
+    padding: 0.2em 0.4em;
+    border-radius: 6px;
+}
+.readme .md pre {
+    background: var(--bg-deep);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px;
+    font-size: 13px;
+    line-height: 1.5;
+}
+.readme .md pre code {
+    font-size: inherit;
+}
+.readme .md blockquote {
+    padding: 0 1em;
+    border-left: 4px solid var(--line-2);
+    color: var(--muted);
+}
+.readme .md table {
+    display: block;
+    width: max-content;
+    max-width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+}
+.readme .md th,
+.readme .md td {
+    border: 1px solid var(--line);
+    padding: 7px 13px;
+}
+.readme .md tr:nth-child(2n) {
+    background: color-mix(in srgb, var(--panel) 55%, transparent);
+}
+.readme .md img {
+    max-width: 100%;
+    border-radius: 6px;
+}
+.readme .md hr {
+    height: 1px;
+    border: none;
+    background: var(--line);
+    margin: 24px 0;
+}
+.readme .md kbd {
+    font-family: var(--mono);
+    font-size: 0.82em;
+    background: var(--panel-2);
+    border: 1px solid var(--line-2);
+    border-bottom-width: 2px;
+    border-radius: 6px;
+    padding: 2px 6px;
+}
+.readme .md details {
+    margin: 0 0 16px;
+    padding: 10px 14px;
+    background: var(--bg-deep);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+}
+.readme .md summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--text);
+}

@@ -663,7 +663,9 @@ function subpackageDetail(s: AppState): string {
 function readmeTab(s: AppState): string {
     const p = s.pkg!;
     if (s.readme) {
-        return `<div class="readme">${mdBlock(s.readme)}</div>`;
+        // Render like GitHub: images/task-lists kept, relative URLs resolved to
+        // the repo, @-mentions left literal (not in-app profile links).
+        return `<div class="readme">${mdBlock(s.readme, { images: true, mentions: false, base: s.readmeBase ?? undefined })}</div>`;
     }
     if (s.readmeLoading) {
         return `<div style="padding:22px;color:${C.muted};font-size:14px">Loading README from GitHub…</div>`;
