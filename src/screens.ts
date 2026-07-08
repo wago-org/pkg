@@ -527,8 +527,11 @@ export function packageScreen(s: AppState): string {
     const bm = s.bookmarked;
     const bookmarkBtn = `<button data-act="bookmark" title="${bm ? "Saved" : "Save for later"}" style="display:inline-flex;align-items:center;gap:8px;font-family:'Outfit',sans-serif;font-weight:700;font-size:13.5px;color:${C.text};background:${bm ? C.panel : "transparent"};border:1px solid ${bm ? C.lilac : C.line2};padding:8px 14px;border-radius:9px;cursor:pointer;transition:all .15s">${bookmarkIcon(15, bm ? C.lilac : C.muted, bm)} ${bm ? "Saved" : "Save"}</button>`;
     const starBtn = `<button data-act="star" title="${s.starred ? "In your stars — opens the repo on GitHub" : "Star this repository on GitHub"}" style="display:inline-flex;align-items:center;gap:8px;font-family:'Outfit',sans-serif;font-weight:700;font-size:13.5px;color:${C.text};background:${s.starred ? C.panel : "transparent"};border:1px solid ${s.starred ? C.lilac : C.line2};padding:8px 14px;border-radius:9px;cursor:pointer;transition:all .15s"><span style="font-size:15px;color:${s.starred ? C.lilac : C.muted}">★</span> ${s.starred ? "Starred" : "Star"} <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12.5px;background:${C.deep};padding:2px 8px;border-radius:6px">${s.starCount.toLocaleString()}</span></button>`;
-    // Opens the source repository on GitHub, alongside save + star.
-    const repoBtn = `<a href="${escAttr(p.repository)}" target="_blank" rel="noopener" title="Open the repository on GitHub" style="display:inline-flex;align-items:center;gap:8px;text-decoration:none;font-family:'Outfit',sans-serif;font-weight:700;font-size:13.5px;color:${C.text};background:transparent;border:1px solid ${C.line2};padding:8px 14px;border-radius:9px;cursor:pointer;transition:all .15s"><span style="font-size:14px;color:${C.muted}">⎇</span> Repo ↗</a>`;
+    // Opens the source repository on GitHub, alongside save + star. Omitted when
+    // the package has no repository (an empty href would navigate to the site root).
+    const repoBtn = p.repository
+        ? `<a href="${escAttr(p.repository)}" target="_blank" rel="noopener" title="Open the repository on GitHub" style="display:inline-flex;align-items:center;gap:8px;text-decoration:none;font-family:'Outfit',sans-serif;font-weight:700;font-size:13.5px;color:${C.text};background:transparent;border:1px solid ${C.line2};padding:8px 14px;border-radius:9px;cursor:pointer;transition:all .15s"><span style="font-size:14px;color:${C.muted}">⎇</span> Repo ↗</a>`
+        : "";
 
     return `
 <div style="padding:28px 0 72px">
@@ -665,7 +668,10 @@ function readmeTab(s: AppState): string {
     if (s.readmeLoading) {
         return `<div style="padding:22px;color:${C.muted};font-size:14px">Loading README from GitHub…</div>`;
     }
-    return `<div style="padding:24px;background:${C.panel};border:1px solid ${C.line};border-radius:12px;color:${C.muted};font-size:14px">No README found in the repository. <a href="${escAttr(p.repository)}" target="_blank" rel="noopener" style="color:${C.lilac};text-decoration:none">View on GitHub ↗</a></div>`;
+    const viewLink = p.repository
+        ? ` <a href="${escAttr(p.repository)}" target="_blank" rel="noopener" style="color:${C.lilac};text-decoration:none">View on GitHub ↗</a>`
+        : "";
+    return `<div style="padding:24px;background:${C.panel};border:1px solid ${C.line};border-radius:12px;color:${C.muted};font-size:14px">No README found in the repository.${viewLink}</div>`;
 }
 
 // The grid of subpackage cards. Each opens the subpackage's own page in-app
@@ -1176,7 +1182,11 @@ function pkgSidebar(s: AppState): string {
               : ""
       }
       ${kwSection}
-      <a href="${escAttr(p.repository)}" target="_blank" rel="noopener" style="text-decoration:none;text-align:center;margin-top:14px;margin-bottom:6px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${C.bg};background:${C.lilac};padding:11px;border-radius:10px">Repository ↗</a>
+      ${
+          p.repository
+              ? `<a href="${escAttr(p.repository)}" target="_blank" rel="noopener" style="text-decoration:none;text-align:center;margin-top:14px;margin-bottom:6px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${C.bg};background:${C.lilac};padding:11px;border-radius:10px">Repository ↗</a>`
+              : ""
+      }
     </aside>`;
 }
 
