@@ -384,9 +384,26 @@ function recentRow(p: Package): string {
 
 // ── search ───────────────────────────────────────────────────────────────────
 
+// The result rows for the current query/filters/sort — extracted so the search
+// bar can patch them live (see app.ts) without re-rendering the whole screen.
+export function searchRows(s: AppState): string {
+    return (
+        filterPackages(s)
+            .map((p) => searchRow(p))
+            .join("") ||
+        `<div style="padding:44px;text-align:center;color:${C.muted};font-size:14px;background:${C.panel};border:1px solid ${C.line};border-radius:14px">No packages${s.query ? ` matching “${esc(s.query)}”` : " published yet"}.</div>`
+    );
+}
+
+// The "N results for X" summary line — also patched live.
+export function searchSummary(s: AppState): string {
+    const n = filterPackages(s).length;
+    const shown = s.query || "all packages";
+    return `${n} result${n === 1 ? "" : "s"} for <span style="color:${C.text};font-weight:700">"${esc(shown)}"</span>`;
+}
+
 export function searchScreen(s: AppState): string {
     const reg = s.registry!;
-    const results = filterPackages(s);
     const filterCats = reg.categories
         .map((f) => {
             const on = !!s.cats[f.key];
@@ -404,11 +421,6 @@ export function searchScreen(s: AppState): string {
             return `<button data-act="sort" data-arg="${k}" style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;color:${on ? C.bg : C.dim};background:${on ? C.lilac : "transparent"};border:none;padding:6px 12px;border-radius:6px;cursor:pointer">${k}</button>`;
         })
         .join("");
-    const rows =
-        results.map((p) => searchRow(p)).join("") ||
-        `<div style="padding:44px;text-align:center;color:${C.muted};font-size:14px;background:${C.panel};border:1px solid ${C.line};border-radius:14px">No packages${s.query ? ` matching “${esc(s.query)}”` : " published yet"}.</div>`;
-    const shown = s.query || "all packages";
-
     return `
 <div style="display:grid;grid-template-columns:220px 1fr;gap:32px;padding:32px 0 72px;align-items:start">
   <aside style="position:sticky;top:78px;display:flex;flex-direction:column;gap:26px">
@@ -433,19 +445,15 @@ export function searchScreen(s: AppState): string {
 
   <div style="min-width:0">
     <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px">
-      <div style="font-size:15px;color:${C.soft}">${results.length} result${results.length === 1 ? "" : "s"} for <span style="color:${C.text};font-weight:700">"${esc(shown)}"</span></div>
+      <div id="search-summary" style="font-size:15px;color:${C.soft}">${searchSummary(s)}</div>
       <div style="display:flex;align-items:center;gap:10px">
         <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:${C.muted}">sort</span>
         <div style="display:flex;gap:2px;background:${C.deep};border:1px solid ${C.line};border-radius:9px;padding:3px">${sorts}</div>
       </div>
     </div>
-    <div style="display:flex;flex-direction:column;gap:12px">${rows || emptyState()}</div>
+    <div id="pkg-results" style="display:flex;flex-direction:column;gap:12px">${searchRows(s)}</div>
   </div>
 </div>`;
-}
-
-function emptyState(): string {
-    return `<div style="background:${C.panel};border:1px solid ${C.line};border-radius:14px;padding:40px;text-align:center;color:${C.muted};font-size:14px">No packages match those filters.</div>`;
 }
 
 function searchRow(p: Package): string {
