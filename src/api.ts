@@ -272,6 +272,12 @@ export function isBookmarked(short: string): boolean {
     return !!lsGet<Record<string, boolean>>(LS.bookmarks, {})[short];
 }
 
+// getBookmarks returns the saved (bookmarked) package shorts.
+export function getBookmarks(): string[] {
+    const bm = lsGet<Record<string, boolean>>(LS.bookmarks, {});
+    return Object.keys(bm).filter((k) => bm[k]);
+}
+
 export function setBookmark(short: string, on: boolean): void {
     const bm = lsGet<Record<string, boolean>>(LS.bookmarks, {});
     if (on) bm[short] = true;

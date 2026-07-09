@@ -282,6 +282,7 @@ function showAccount(tab: AcctTab, push: boolean): void {
     }
     state.screen = "account";
     state.acctTab = tab;
+    state.savedShorts = api.getBookmarks();
     state.menuOpen = false;
     if (push) {
         const q = tab && tab !== "profile" ? `?tab=${tab}` : "";
@@ -1127,7 +1128,16 @@ function dispatch(act: string, arg: string | null, el: HTMLElement): void {
             break;
         case "acct-tab":
             state.acctTab = (arg as AcctTab) || "profile";
+            state.savedShorts = api.getBookmarks();
             render();
+            break;
+        case "unsave":
+            if (arg) {
+                api.setBookmark(arg, false);
+                state.savedShorts = api.getBookmarks();
+                if (state.pkg?.short === arg) state.bookmarked = false;
+                render();
+            }
             break;
         case "open":
             if (arg) void openPackage(arg);
