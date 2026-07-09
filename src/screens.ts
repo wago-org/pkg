@@ -1111,21 +1111,6 @@ function pkgSidebar(s: AppState): string {
         ? `<div style="padding:15px 0;border-top:1px solid ${C.line}"><div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;color:${C.muted};text-transform:uppercase;margin-bottom:10px">Keywords</div><div style="display:flex;gap:6px;flex-wrap:wrap">${kwChips}</div></div>`
         : "";
 
-    const authors = (p.authors || [])
-        .map((a) => {
-            const av = ghAvatarSpan(
-                a.github,
-                a.name,
-                (a.name || "?")[0].toUpperCase(),
-                avatarBgFor(a.github || a.name),
-                undefined,
-                34,
-                13,
-            );
-            // Clickable → wago profile when we have a GitHub login for them.
-            return a.github ? profileLinkWrap(a.github, av) : av;
-        })
-        .join("");
     // Real GitHub repo contributors (with their avatars) when loaded; otherwise
     // fall back to the wago publishers list.
     const contribSrc: { login: string; avatarUrl?: string }[] =
@@ -1171,10 +1156,6 @@ function pkgSidebar(s: AppState): string {
       ${metaRows}
       ${compatSection}
       ${capSection}
-      <div style="padding:15px 0;border-top:1px solid ${C.line}">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;color:${C.muted};text-transform:uppercase;margin-bottom:10px">Authors</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">${authors || `<span style="font-size:13px;color:${C.muted}">—</span>`}</div>
-      </div>
       ${publishersSection(p)}
       ${
           contributors
@@ -1203,6 +1184,7 @@ function publishersSection(p: Package): string {
         ...(p.allowedPublishers || []).map((login) => ({ login, owner: false })),
     ];
     if (!rows.length) return "";
+    const heading = rows.length === 1 ? "Publisher" : "Publishers";
     const row = (login: string, owner: boolean): string =>
         `<div style="display:flex;align-items:center;gap:8px">
       ${profileLinkWrap(login, ghAvatarSpan(login, login, login[0].toUpperCase(), avatarBgFor(login), undefined, 24, 10))}
@@ -1210,7 +1192,7 @@ function publishersSection(p: Package): string {
       ${owner ? `<span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:${C.muted};background:${C.deep};border:1px solid ${C.line};padding:2px 7px;border-radius:100px;flex-shrink:0">owner</span>` : ""}
     </div>`;
     return `<div style="padding:15px 0;border-top:1px solid ${C.line}">
-      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;color:${C.muted};text-transform:uppercase;margin-bottom:10px">Publishers</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;color:${C.muted};text-transform:uppercase;margin-bottom:10px">${heading}</div>
       <div style="display:flex;flex-direction:column;gap:9px">${rows.map((r) => row(r.login, r.owner)).join("")}</div>
       <div style="font-size:11px;color:${C.muted};margin-top:9px;line-height:1.4">The repo's authors/admins can also publish.</div>
     </div>`;
