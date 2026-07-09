@@ -154,13 +154,18 @@ func (g *GitHub) SetStar(token, owner, repo string, on bool) error {
 	return errors.New("github star failed: " + resp.Status)
 }
 
-// RepoPermission returns the token user's permission on owner/repo — one of
-// "admin", "maintain", "write", "triage", "read", or "none" — from the
-// `permissions` object on GET /repos/{owner}/{repo}. An error means the repo
-// couldn't be read at all (missing, or private without repo scope), which the
-// caller treats as "no verified access". Public repos work with any user token.
-func (g *GitHub) RepoPermission(token, owner, repo string) (string, error) {
+// RepoAccess returns the token user's permission on owner/repo — one of "admin",
+// "maintain", "write", "triage", "read", or "none" — plus whether the repo is
+// owned by an organization, from GET /repos/{owner}/{repo}. "admin" means the
+// user is the author/owner (a user repo's owner, or an org owner/admin). An error
+// means the repo couldn't be read at all (missing, or private without repo scope),
+// which the caller treats as "no verified access". Public repos work with any
+// signed-in user's token.
+func (g *GitHub) RepoAccess(token, owner, repo string) (perm string, isOrg bool, err error) {
 	r, err := ghGetJSON[struct {
+		Owner struct {
+			Type string `json:"type"`
+		} `json:"owner"`
 		Permissions struct {
 			Admin    bool `json:"admin"`
 			Maintain bool `json:"maintain"`
@@ -170,21 +175,22 @@ func (g *GitHub) RepoPermission(token, owner, repo string) (string, error) {
 		} `json:"permissions"`
 	}](token, "https://api.github.com/repos/"+url.PathEscape(owner)+"/"+url.PathEscape(repo))
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
+	isOrg = strings.EqualFold(r.Owner.Type, "Organization")
 	switch {
 	case r.Permissions.Admin:
-		return "admin", nil
+		return "admin", isOrg, nil
 	case r.Permissions.Maintain:
-		return "maintain", nil
+		return "maintain", isOrg, nil
 	case r.Permissions.Push:
-		return "write", nil
+		return "write", isOrg, nil
 	case r.Permissions.Triage:
-		return "triage", nil
+		return "triage", isOrg, nil
 	case r.Permissions.Pull:
-		return "read", nil
+		return "read", isOrg, nil
 	}
-	return "none", nil
+	return "none", isOrg, nil
 }
 
 // OrgRole returns the token user's membership role in org — "admin" for owners,

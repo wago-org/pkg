@@ -53,6 +53,9 @@ export interface AppState {
     reportSending: boolean;
     reportDone: boolean;
 
+    // Allowed-publishers editor (package owner only).
+    publisherDraft: string;
+
     // GitHub issue sync (client-side fetch)
     ghIssues: Issue[] | null; // null = not synced; [] = synced but empty
     ghIssuesLoading: boolean;
@@ -128,6 +131,7 @@ export const state: AppState = {
     reportDetail: "",
     reportSending: false,
     reportDone: false,
+    publisherDraft: "",
 
     ghIssues: null,
     ghIssuesLoading: false,

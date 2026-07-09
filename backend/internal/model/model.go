@@ -260,19 +260,23 @@ type Comment struct {
 // "version"/"latestVersion") are added by the API layer at response time and are
 // not stored here.
 type Package struct {
-	Name              string        `json:"name"` // module path
-	Short             string        `json:"short"`
-	Description       string        `json:"description"`
-	Category          string        `json:"category"`
-	Tags              []string      `json:"tags"`
-	Keywords          []string      `json:"keywords"`
-	License           string        `json:"license"`
-	Repository        string        `json:"repository"`
-	Homepage          string        `json:"homepage"`
-	Stability         Stability     `json:"stability"`
-	Verified          bool          `json:"verified"`
-	Official          bool          `json:"official"`
-	OwnerLogin        string        `json:"ownerLogin"`
+	Name        string    `json:"name"` // module path
+	Short       string    `json:"short"`
+	Description string    `json:"description"`
+	Category    string    `json:"category"`
+	Tags        []string  `json:"tags"`
+	Keywords    []string  `json:"keywords"`
+	License     string    `json:"license"`
+	Repository  string    `json:"repository"`
+	Homepage    string    `json:"homepage"`
+	Stability   Stability `json:"stability"`
+	Verified    bool      `json:"verified"`
+	Official    bool      `json:"official"`
+	OwnerLogin  string    `json:"ownerLogin"`
+	// AllowedPublishers are extra GitHub logins the owner has granted publish
+	// rights, beyond the repo's author/admins (who can always publish). Empty by
+	// default: publishing is author-only until the owner configures this.
+	AllowedPublishers []string      `json:"allowedPublishers,omitempty"`
 	Readme            string        `json:"readme,omitempty"`
 	DeprecatedMessage string        `json:"deprecatedMessage,omitempty"`
 	Compat            Compatibility `json:"compatibility"`

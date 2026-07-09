@@ -105,6 +105,7 @@ export interface Package {
     verified: boolean;
     official?: boolean;
     ownerLogin?: string;
+    allowedPublishers?: string[]; // extra logins the owner lets publish (beyond repo admins)
     readme?: string; // module-level readme (markdown); fallback for subpackages
     deprecatedMessage?: string;
     compatibility: Compatibility;

@@ -42,6 +42,44 @@ func (a *App) handleUnpublishPackage(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "unpublished": p.Short})
 }
 
+// publishersRequest is the body of PUT /api/packages/{name}/publishers.
+type publishersRequest struct {
+	Publishers []string `json:"publishers"`
+}
+
+// handleSetPublishers sets the package's allowed publishers — extra GitHub logins
+// (beyond the repo's author/admins) permitted to publish. Owner / admin only.
+func (a *App) handleSetPublishers(w http.ResponseWriter, r *http.Request) {
+	p, ok := a.ownedPackage(w, r)
+	if !ok {
+		return
+	}
+	var req publishersRequest
+	if err := decodeJSON(w, r, &req, 1<<16); err != nil {
+		httpx.WriteError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	seen := map[string]bool{}
+	out := []string{}
+	for _, s := range req.Publishers {
+		login := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(s), "@"))
+		// Skip blanks, the owner (always allowed), and duplicates.
+		if login == "" || strings.EqualFold(login, p.OwnerLogin) {
+			continue
+		}
+		if key := strings.ToLower(login); !seen[key] {
+			seen[key] = true
+			out = append(out, login)
+		}
+	}
+	p.AllowedPublishers = out
+	if err := a.Store.UpsertPackage(p); err != nil {
+		httpx.WriteError(w, http.StatusInternalServerError, "store error")
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, a.decoratePackage(p, ""))
+}
+
 // handleUnpublishVersion removes a single version. If it was the last version,
 // the whole package is removed. (owner only)
 func (a *App) handleUnpublishVersion(w http.ResponseWriter, r *http.Request) {
