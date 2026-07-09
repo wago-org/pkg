@@ -7,7 +7,7 @@ import type { Comment, Issue, InstallPoint, Package, Registry, Review, User, Vie
 export type Screen = "home" | "search" | "package" | "auth" | "account" | "user";
 export type PkgTab = "readme" | "reviews" | "comments" | "dependencies" | "dependents" | "versions" | "subpackages" | "settings";
 export type Sort = "popular" | "recent";
-export type AcctTab = "profile" | "plugins" | "stars" | "settings";
+export type AcctTab = "profile" | "plugins" | "stars" | "saved" | "settings";
 
 export interface AppState {
     registry: Registry | null;
@@ -87,6 +87,7 @@ export interface AppState {
     // account
     acctTab: AcctTab;
     starShorts: string[] | null; // packages the user has starred (null = unloaded)
+    savedShorts: string[]; // bookmarked (saved) package shorts, from localStorage
     menuOpen: boolean;
     settings: { releases: boolean; security: boolean; digest: boolean };
     bioDraft: string | null;
@@ -162,6 +163,7 @@ export const state: AppState = {
 
     acctTab: "profile",
     starShorts: null,
+    savedShorts: [],
     menuOpen: false,
     settings: { releases: true, security: true, digest: false },
     bioDraft: null,

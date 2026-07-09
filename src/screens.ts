@@ -207,6 +207,7 @@ function profileMenu(s: AppState): string {
         { label: "Your profile", icon: "◉", tab: "profile" },
         { label: "Your packages", icon: "▤", tab: "plugins" },
         { label: "Your stars", icon: "★", tab: "stars" },
+        { label: "Saved", icon: bookmarkIcon(14, "currentColor", true), tab: "saved" },
         { label: "Settings", icon: "⚙", tab: "settings" },
     ]
         .map(
@@ -1417,6 +1418,7 @@ export function accountScreen(s: AppState): string {
         { k: "profile", l: "Profile", icon: "◉" },
         { k: "plugins", l: "Your packages", icon: "▤" },
         { k: "stars", l: "Your stars", icon: "★" },
+        { k: "saved", l: "Saved", icon: bookmarkIcon(13, "currentColor", true) },
         { k: "settings", l: "Settings", icon: "⚙" },
     ]
         .map((n) => {
@@ -1427,6 +1429,7 @@ export function accountScreen(s: AppState): string {
     let body = "";
     if (s.acctTab === "plugins") body = acctPlugins(s);
     else if (s.acctTab === "stars") body = acctStars(s);
+    else if (s.acctTab === "saved") body = acctSaved(s);
     else if (s.acctTab === "settings") body = acctSettings(s);
     else body = acctProfile(s);
 
@@ -1554,6 +1557,44 @@ function acctPlugins(s: AppState): string {
           <a href="https://github.com/wago-org/wago" target="_blank" rel="noopener" style="text-decoration:none;font-size:13px;font-weight:700;color:${C.bg};background:${C.lilac};padding:9px 16px;border-radius:9px">Publish a package ↗</a>
         </div>
         <div style="border:1px solid ${C.line};border-radius:14px;overflow:hidden">${rows}</div>
+      </div>`;
+}
+
+// "Saved" — the packages bookmarked in this browser (per-browser "save for
+// later"), resolved from the registry index. Each can be removed with ×.
+function acctSaved(s: AppState): string {
+    const byShort = new Map((s.registry?.packages || []).map((p) => [p.short, p]));
+    const saved = s.savedShorts.map((sh) => byShort.get(sh)).filter((p): p is Package => !!p);
+    let body: string;
+    if (saved.length === 0) {
+        body = `<div style="padding:26px;color:${C.muted};font-size:14px;background:${C.panel};text-align:center">Nothing saved yet. Hit Save on a package to keep it here for later.<div style="margin-top:12px"><a href="/search" data-act="search" style="text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:700;color:${C.lilac};border:1px solid ${C.line2};padding:8px 15px;border-radius:9px">Browse packages →</a></div></div>`;
+    } else {
+        const list = saved
+            .map(
+                (p, i) => `
+            <div style="display:grid;grid-template-columns:1fr auto auto;gap:14px;align-items:center;padding:16px 20px;border-top:${i === 0 ? "none" : `1px solid ${C.line}`};background:${C.panel}">
+              <a href="${pkgPath(p)}" data-act="open" data-arg="${escAttr(p.short)}" style="text-decoration:none;min-width:0">
+                <div style="display:flex;align-items:center;gap:9px;margin-bottom:3px;flex-wrap:wrap">
+                  <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14.5px;color:${C.lilac}">${esc(p.short)}</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted}">${esc(p.version)}</span>
+                  ${p.verified ? `<span style="color:${C.green};font-size:12px">✦</span>` : ""}
+                </div>
+                <p style="font-size:13px;color:${C.soft};margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.description)}</p>
+              </a>
+              <div style="text-align:right;white-space:nowrap;font-family:'JetBrains Mono',monospace;font-size:12px;color:${C.lilac}">★ ${p.stars.toLocaleString()}</div>
+              <button data-act="unsave" data-arg="${escAttr(p.short)}" title="Remove from saved" style="font-family:'Outfit',sans-serif;font-size:17px;line-height:1;color:${C.muted};background:transparent;border:none;padding:2px 5px;cursor:pointer">×</button>
+            </div>`,
+            )
+            .join("");
+        body = `<div style="border:1px solid ${C.line};border-radius:14px;overflow:hidden">${list}</div>`;
+    }
+    return `
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
+          <h1 style="font-size:22px;font-weight:800;margin:0">Saved</h1>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:15px;color:${C.muted};font-weight:500">${saved.length}</span>
+        </div>
+        ${body}
       </div>`;
 }
 
