@@ -343,6 +343,13 @@ export async function setPublishers(short: string, publishers: string[]): Promis
     return normalizePackage(raw);
 }
 
+// deprecatePackage marks a package deprecated (with an optional message) or undoes
+// it (owner / admin). Returns the updated package.
+export async function deprecatePackage(short: string, message: string, undo: boolean): Promise<Package> {
+    const raw = await apiSend<RawPackage>(`/api/packages/${short}/deprecate`, "POST", { message, undo });
+    return normalizePackage(raw);
+}
+
 // ── comments ─────────────────────────────────────────────────────────────────
 
 export async function loadComments(pkg: Package, user: User | null): Promise<Comment[]> {

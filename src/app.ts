@@ -943,6 +943,22 @@ async function removePublisher(login: string): Promise<void> {
     await savePublishers((p.allowedPublishers || []).filter((x) => x.toLowerCase() !== login.toLowerCase()));
 }
 
+// setDeprecated marks the package deprecated (message) or undoes it, then refreshes.
+async function setDeprecated(message: string, undo: boolean): Promise<void> {
+    const p = state.pkg;
+    if (!p) return;
+    try {
+        const updated = await api.deprecatePackage(p.short, message, undo);
+        if (state.pkg?.short === p.short) {
+            state.pkg.deprecatedMessage = updated.deprecatedMessage;
+            state.deprecateDraft = "";
+        }
+    } catch {
+        alert("Couldn't update deprecation — you may not have permission.");
+    }
+    render();
+}
+
 function dispatch(act: string, arg: string | null, el: HTMLElement): void {
     switch (act) {
         case "home":
@@ -1068,6 +1084,12 @@ function dispatch(act: string, arg: string | null, el: HTMLElement): void {
             break;
         case "publisher-remove":
             if (arg) void removePublisher(arg);
+            break;
+        case "deprecate":
+            void setDeprecated(state.deprecateDraft.trim(), false);
+            break;
+        case "undeprecate":
+            void setDeprecated("", true);
             break;
         case "composer-open":
             if (!state.user) {
@@ -1277,6 +1299,7 @@ function wireEvents(): void {
         else if (act === "comment-draft") state.commentDraft = value;
         else if (act === "report-detail") state.reportDetail = value;
         else if (act === "publisher-draft") state.publisherDraft = value;
+        else if (act === "deprecate-draft") state.deprecateDraft = value;
         else if (act === "comment-edit-draft") state.commentEditDraft = value;
         else if (act === "reply-draft") state.replyDraft = value;
         else if (act === "email-draft") state.emailDraft = value;

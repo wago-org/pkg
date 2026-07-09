@@ -516,9 +516,12 @@ export function packageScreen(s: AppState): string {
         tabEl("issues", `Issues · ${openIssueCount}`),
         tabEl("versions", `Versions · ${p.versions.length}`),
     ].join("");
-    // Subpackages tab is anchored to the far right of the tab bar.
+    // Subpackages + Settings tabs are anchored to the far right of the tab bar.
     const subTab = p.subpackages.length
         ? tabEl("subpackages", `Subpackages · ${p.subpackages.length}`, "margin-left:auto")
+        : "";
+    const settingsTabEl = canManagePackage(s)
+        ? tabEl("settings", "⚙ Settings", subTab ? "" : "margin-left:auto")
         : "";
 
     const badges = `${p.verified ? `<span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${C.bg};background:${C.green};padding:5px 11px;border-radius:100px">✦ verified</span>` : ""}<span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:${C.lilac};border:1px solid ${C.line2};padding:5px 11px;border-radius:100px">${esc(p.version)}</span>`;
@@ -555,7 +558,7 @@ export function packageScreen(s: AppState): string {
       ${
           s.sub
               ? subpackageDetail(s)
-              : `<div style="display:flex;gap:24px;border-bottom:1px solid ${C.line};margin-bottom:28px;flex-wrap:wrap">${tabs}${subTab}</div>
+              : `<div style="display:flex;gap:24px;border-bottom:1px solid ${C.line};margin-bottom:28px;flex-wrap:wrap">${tabs}${subTab}${settingsTabEl}</div>
       ${pkgTabBody(s)}`
       }
     </main>
@@ -614,6 +617,8 @@ function pkgTabBody(s: AppState): string {
             return versionsTab(s);
         case "subpackages":
             return subpackagesTab(s);
+        case "settings":
+            return settingsTab(s);
         default:
             return readmeTab(s);
     }
@@ -1190,18 +1195,51 @@ function pkgSidebar(s: AppState): string {
               ? `<a href="${escAttr(p.repository)}" target="_blank" rel="noopener" style="text-decoration:none;text-align:center;margin-top:14px;margin-bottom:6px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${C.bg};background:${C.lilac};padding:11px;border-radius:10px">Repository ↗</a>`
               : ""
       }
-      ${publishersEditor(s)}
-      ${moderationLinks(s)}
+      ${reportLink(s)}
     </aside>`;
 }
 
-// publishersEditor lets the package owner (or a site admin) grant publish rights
-// to extra GitHub logins — publishing is author-only until they do.
-function publishersEditor(s: AppState): string {
-    const p = s.pkg!;
+// canManagePackage reports whether the viewer may open the package's Settings tab:
+// its owner login, or a site admin.
+function canManagePackage(s: AppState): boolean {
     const me = s.user?.login?.toLowerCase();
-    const owner = (p.ownerLogin || "").toLowerCase();
-    if (!me || (me !== owner && !s.user?.admin)) return "";
+    if (!me) return false;
+    return me === (s.pkg?.ownerLogin || "").toLowerCase() || !!s.user?.admin;
+}
+
+// reportLink is the subtle "Report package" affordance in the sidebar — available
+// to any signed-in user (owner/admin controls live in the Settings tab instead).
+function reportLink(s: AppState): string {
+    if (!s.user) return "";
+    return `<div style="margin-top:16px;padding-top:14px;border-top:1px solid ${C.line}">
+      <button data-act="report-open" style="display:flex;align-items:center;gap:7px;width:100%;justify-content:center;font-family:'Outfit',sans-serif;font-weight:600;font-size:12.5px;color:${C.muted};background:transparent;border:1px solid ${C.line};padding:8px;border-radius:9px;cursor:pointer">⚑ Report package</button>
+    </div>`;
+}
+
+// settingsTab consolidates every owner/admin control for a package: who may
+// publish, deprecation, and removal. Gated by canManagePackage (the tab only
+// renders for owner/admin, but re-check here defensively).
+function settingsTab(s: AppState): string {
+    if (!canManagePackage(s)) {
+        return `<div style="color:${C.muted};font-size:14px;padding:20px 0">You don't manage this package.</div>`;
+    }
+    const p = s.pkg!;
+    const isOwner = (s.user?.login || "").toLowerCase() === (p.ownerLogin || "").toLowerCase();
+    const panel = (title: string, desc: string, body: string): string =>
+        `<section style="background:${C.panel};border:1px solid ${C.line};border-radius:14px;padding:20px 22px">
+        <h3 style="font-family:'Outfit',sans-serif;font-weight:800;font-size:15px;margin:0 0 4px;color:${C.text}">${title}</h3>
+        <p style="font-size:12.5px;line-height:1.5;color:${C.muted};margin:0 0 14px">${desc}</p>${body}</section>`;
+    return `<div style="display:flex;flex-direction:column;gap:18px;max-width:660px">
+      ${panel("Publishers", "Extra GitHub logins allowed to publish new versions, beyond the repo's authors/admins. Publishing is author-only by default.", publishersBody(s))}
+      ${panel("Deprecation", "Flag this package as deprecated — a banner warns users on the package page.", deprecateBody(s))}
+      ${dangerPanel(isOwner)}
+    </div>`;
+}
+
+// publishersBody is the allowed-publishers editor: chips with remove buttons + an
+// add input.
+function publishersBody(s: AppState): string {
+    const p = s.pkg!;
     const list = p.allowedPublishers || [];
     const chips = list.length
         ? list
@@ -1210,34 +1248,38 @@ function publishersEditor(s: AppState): string {
                       `<span style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:${C.text};background:${C.deep};border:1px solid ${C.line2};border-radius:8px;padding:3px 6px 3px 9px">@${esc(login)}<button data-act="publisher-remove" data-arg="${escAttr(login)}" title="Remove" style="font-family:'Outfit',sans-serif;font-size:14px;line-height:1;color:${C.muted};background:transparent;border:none;padding:0 2px;cursor:pointer">×</button></span>`,
               )
               .join("")
-        : `<span style="font-size:12px;color:${C.muted}">Author-only — only @${esc(p.ownerLogin || "")} and the repo's admins can publish.</span>`;
-    return `<div style="margin-top:16px;padding-top:14px;border-top:1px solid ${C.line}">
-      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;color:${C.muted};text-transform:uppercase;margin-bottom:8px">Publishers</div>
-      <p style="font-size:12px;line-height:1.5;color:${C.muted};margin:0 0 10px">Extra logins allowed to publish new versions, beyond the repo's authors/admins.</p>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${chips}</div>
-      <div style="display:flex;gap:6px">
+        : `<span style="font-size:12.5px;color:${C.muted}">Author-only — only @${esc(p.ownerLogin || "")} and the repo's admins can publish.</span>`;
+    return `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">${chips}</div>
+      <div style="display:flex;gap:6px;max-width:360px">
         <input data-act="publisher-draft" value="${escAttr(s.publisherDraft)}" placeholder="github login" spellcheck="false" style="flex:1;min-width:0;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:${C.text};background:${C.deep};border:1px solid ${C.line2};border-radius:9px;padding:8px 10px" />
         <button data-act="publisher-add" style="flex-shrink:0;font-family:'Outfit',sans-serif;font-weight:700;font-size:12.5px;color:${C.bg};background:${C.lilac};border:none;padding:8px 14px;border-radius:9px;cursor:pointer">Add</button>
-      </div>
-    </div>`;
+      </div>`;
 }
 
-// moderationLinks renders the report link (any signed-in user) and, for site
-// admins, a takedown button — a small footer under the sidebar.
-function moderationLinks(s: AppState): string {
-    const rows: string[] = [];
-    if (s.user) {
-        rows.push(
-            `<button data-act="report-open" style="display:flex;align-items:center;gap:7px;width:100%;justify-content:center;font-family:'Outfit',sans-serif;font-weight:600;font-size:12.5px;color:${C.muted};background:transparent;border:1px solid ${C.line};padding:8px;border-radius:9px;cursor:pointer">⚑ Report package</button>`,
-        );
+// deprecateBody toggles the package's deprecation notice.
+function deprecateBody(s: AppState): string {
+    const p = s.pkg!;
+    if (p.deprecatedMessage) {
+        return `<div style="font-size:13px;line-height:1.5;color:${C.soft};margin-bottom:12px">Deprecated: “${esc(p.deprecatedMessage)}”</div>
+      <button data-act="undeprecate" style="font-family:'Outfit',sans-serif;font-weight:700;font-size:12.5px;color:${C.text};background:transparent;border:1px solid ${C.line2};padding:8px 14px;border-radius:9px;cursor:pointer">Remove deprecation</button>`;
     }
-    if (s.user?.admin) {
-        rows.push(
-            `<button data-act="takedown" title="Remove this package from the registry" style="display:flex;align-items:center;gap:7px;width:100%;justify-content:center;font-family:'Outfit',sans-serif;font-weight:700;font-size:12.5px;color:${C.pink};background:transparent;border:1px solid #6b3453;padding:8px;border-radius:9px;cursor:pointer">Take down</button>`,
-        );
-    }
-    if (!rows.length) return "";
-    return `<div style="margin-top:16px;padding-top:14px;border-top:1px solid ${C.line};display:flex;flex-direction:column;gap:8px">${rows.join("")}</div>`;
+    return `<div style="display:flex;gap:6px;max-width:460px">
+        <input data-act="deprecate-draft" value="${escAttr(s.deprecateDraft)}" placeholder="Reason (optional)" style="flex:1;min-width:0;font-family:'Outfit',sans-serif;font-size:13px;color:${C.text};background:${C.deep};border:1px solid ${C.line2};border-radius:9px;padding:8px 10px" />
+        <button data-act="deprecate" style="flex-shrink:0;font-family:'Outfit',sans-serif;font-weight:700;font-size:12.5px;color:${C.text};background:transparent;border:1px solid ${C.line2};padding:8px 14px;border-radius:9px;cursor:pointer">Mark deprecated</button>
+      </div>`;
+}
+
+// dangerPanel holds the destructive action: unpublish (owner) / take down (admin).
+function dangerPanel(isOwner: boolean): string {
+    const label = isOwner ? "Unpublish package" : "Take down package";
+    const desc = isOwner
+        ? "Remove this package and all its versions from the registry. This can't be undone."
+        : "Remove this package from the registry as a site admin. This can't be undone.";
+    return `<section style="background:#2a1522;border:1px solid #6b3453;border-radius:14px;padding:20px 22px">
+        <h3 style="font-family:'Outfit',sans-serif;font-weight:800;font-size:15px;margin:0 0 4px;color:#ffb4d2">Danger zone</h3>
+        <p style="font-size:12.5px;line-height:1.5;color:#e0a9c4;margin:0 0 14px">${desc}</p>
+        <button data-act="takedown" style="font-family:'Outfit',sans-serif;font-weight:700;font-size:13px;color:#fff;background:#8a2f52;border:1px solid #b0426b;padding:9px 16px;border-radius:9px;cursor:pointer">${label}</button>
+      </section>`;
 }
 
 // reportModal is the flag-for-moderation panel: pick a reason, add optional

@@ -5,7 +5,7 @@
 import type { Comment, Issue, InstallPoint, Package, Registry, Review, User, ViewUser } from "./types.js";
 
 export type Screen = "home" | "search" | "package" | "auth" | "account" | "user";
-export type PkgTab = "readme" | "reviews" | "comments" | "issues" | "versions" | "subpackages";
+export type PkgTab = "readme" | "reviews" | "comments" | "issues" | "versions" | "subpackages" | "settings";
 export type Sort = "popular" | "recent";
 export type AcctTab = "profile" | "plugins" | "stars" | "settings";
 
@@ -53,8 +53,9 @@ export interface AppState {
     reportSending: boolean;
     reportDone: boolean;
 
-    // Allowed-publishers editor (package owner only).
+    // Settings tab (package owner / admin).
     publisherDraft: string;
+    deprecateDraft: string;
 
     // GitHub issue sync (client-side fetch)
     ghIssues: Issue[] | null; // null = not synced; [] = synced but empty
@@ -132,6 +133,7 @@ export const state: AppState = {
     reportSending: false,
     reportDone: false,
     publisherDraft: "",
+    deprecateDraft: "",
 
     ghIssues: null,
     ghIssuesLoading: false,
