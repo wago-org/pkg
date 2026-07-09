@@ -2,6 +2,35 @@ package api
 
 import "testing"
 
+func TestParseAuthors(t *testing.T) {
+	cases := map[string][2]string{ // input → {name, github}
+		"@octocat":         {"octocat", "octocat"},
+		"octocat":          {"octocat", "octocat"}, // bare login
+		"Jane Doe <@jane>": {"Jane Doe", "jane"},
+		"Jane Doe (@jane)": {"Jane Doe", "jane"},
+		"The wago authors": {"The wago authors", ""}, // spaces → name only
+		"wago-org":         {"wago-org", "wago-org"}, // hyphen login
+		"Bad_Login":        {"Bad_Login", ""},        // underscore not a login char
+	}
+	for in, want := range cases {
+		got := parseAuthors([]string{in})
+		if len(got) != 1 || got[0].Name != want[0] || got[0].Github != want[1] {
+			t.Errorf("parseAuthors(%q) = %+v, want {Name:%q Github:%q}", in, got, want[0], want[1])
+		}
+	}
+}
+
+func TestIsGitHubLogin(t *testing.T) {
+	for in, want := range map[string]bool{
+		"octocat": true, "wago-org": true, "a": true,
+		"-lead": false, "trail-": false, "has space": false, "und_er": false, "": false,
+	} {
+		if isGitHubLogin(in) != want {
+			t.Errorf("isGitHubLogin(%q) = %v, want %v", in, isGitHubLogin(in), want)
+		}
+	}
+}
+
 func TestHasWrite(t *testing.T) {
 	for perm, want := range map[string]bool{
 		"admin": true, "maintain": true, "write": true,

@@ -191,6 +191,14 @@ func (a *App) handlePublish(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(req.Manifest.Authors) > 0 {
 		p.Authors = parseAuthors(req.Manifest.Authors)
+	} else if len(p.Authors) == 0 {
+		// No authors declared: default to the publisher (a verified author of the
+		// repo), so the package still shows a real GitHub identity + avatar.
+		name := u.Name
+		if name == "" {
+			name = u.Login
+		}
+		p.Authors = []model.Author{{Name: name, Github: u.Login}}
 	}
 	subs := req.Manifest.ResolvedSubpackages()
 	p.Subpackages = subs
@@ -283,9 +291,11 @@ func aggregateFromSubpackages(p *model.Package, subs []model.Subpackage) {
 	}
 }
 
-// parseAuthors turns manifest author strings into model.Authors. It recognises a
-// trailing GitHub handle in "Name <handle>", "Name (@handle)", or a bare
-// "@handle"; otherwise the whole string is the name.
+// parseAuthors turns manifest author strings into model.Authors. Authors are
+// GitHub-identity-first: it recognises a trailing handle in "Name <handle>" or
+// "Name (@handle)", a bare "@handle", or a bare login like "octocat" (so
+// authors: ["octocat"] gets an avatar). A string with spaces or non-login
+// characters is treated as a display name only.
 func parseAuthors(list []string) []model.Author {
 	out := make([]model.Author, 0, len(list))
 	for _, raw := range list {
@@ -294,17 +304,39 @@ func parseAuthors(list []string) []model.Author {
 			continue
 		}
 		a := model.Author{Name: s}
-		if i := strings.IndexAny(s, "<("); i >= 0 {
+		switch {
+		case strings.IndexAny(s, "<(") >= 0:
+			i := strings.IndexAny(s, "<(")
 			a.Name = strings.TrimSpace(s[:i])
-			handle := strings.Trim(s[i:], "<>()@ ")
-			a.Github = strings.TrimPrefix(handle, "@")
-		} else if strings.HasPrefix(s, "@") {
+			a.Github = strings.TrimPrefix(strings.Trim(s[i:], "<>()@ "), "@")
+		case strings.HasPrefix(s, "@"):
 			a.Name = strings.TrimPrefix(s, "@")
 			a.Github = a.Name
+		case isGitHubLogin(s):
+			a.Github = s // bare login → treat as a GitHub handle
 		}
 		out = append(out, a)
 	}
 	return out
+}
+
+// isGitHubLogin reports whether s is a plausible GitHub login: 1–39 chars of
+// alphanumerics and non-leading/trailing hyphens (no spaces).
+func isGitHubLogin(s string) bool {
+	if s == "" || len(s) > 39 {
+		return false
+	}
+	for i, r := range s {
+		alnum := (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')
+		if alnum {
+			continue
+		}
+		if r == '-' && i > 0 && i < len(s)-1 {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 // unionStrings appends items from add that are not already in base, preserving
