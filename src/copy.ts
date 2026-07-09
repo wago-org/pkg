@@ -13,7 +13,7 @@ export async function copyFrom(btn: HTMLElement): Promise<void> {
     }, 1400);
 }
 
-async function copyText(text: string): Promise<boolean> {
+export async function copyText(text: string): Promise<boolean> {
     if (navigator.clipboard?.writeText) {
         try {
             await navigator.clipboard.writeText(text);

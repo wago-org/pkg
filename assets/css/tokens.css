@@ -162,33 +162,45 @@ button {
     margin: 0 0 10px;
 }
 
-/* Copy button, injected top-right of every code block (see enhanceCodeBlocks). */
+/* Copy icon button, injected top-right of every code block (enhanceCodeBlocks).
+   No background at rest; it lights up on hover, and turns green on copy. */
 .md pre .code-copy {
     position: absolute;
-    top: 7px;
-    right: 7px;
-    font-family: var(--sans);
-    font-size: 11px;
-    font-weight: 600;
-    line-height: 1;
-    color: var(--dim);
-    background: var(--panel-2);
-    border: 1px solid var(--line-2);
+    top: 6px;
+    right: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    color: var(--muted);
+    background: transparent;
+    border: none;
     border-radius: 7px;
-    padding: 4px 9px;
     cursor: pointer;
-    opacity: 0.5;
+    opacity: 0.65;
     transition:
         opacity 0.12s ease,
-        color 0.12s ease;
+        color 0.12s ease,
+        background 0.12s ease;
 }
 .md pre:hover .code-copy,
-.md pre .code-copy:focus {
+.md pre .code-copy:focus-visible {
     opacity: 1;
 }
 .md pre .code-copy:hover {
-    color: var(--lilac);
-    border-color: var(--lilac);
+    background: var(--panel-2);
+    color: var(--text);
+}
+.md pre .code-copy.copied {
+    color: var(--green);
+    opacity: 1;
+    background: transparent;
+}
+.md pre .code-copy svg {
+    width: 15px;
+    height: 15px;
+    display: block;
 }
 .md pre code {
     background: none;
