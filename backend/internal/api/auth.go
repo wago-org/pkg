@@ -118,23 +118,29 @@ func (a *App) handleCallback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, dest, http.StatusFound)
 }
 
-// safeReturn validates a post-auth redirect target: it must land on our own
-// frontend (an absolute URL under FrontendURL, or a site-relative path), else "".
-// This prevents the OAuth flow from being used as an open redirect.
+// safeReturn validates a post-auth redirect target: after resolving it against
+// the frontend base, the result must land on the frontend's own scheme+host,
+// else "". Resolving through net/url (rather than string prefixes) closes the
+// open-redirect bypasses — "//evil", "/\evil", "https://front.evil.com" all
+// resolve to a foreign host and are rejected.
 func (a *App) safeReturn(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return ""
 	}
-	front := strings.TrimRight(a.Cfg.FrontendURL, "/")
-	if raw == front || strings.HasPrefix(raw, front+"/") {
-		return raw
+	base, err := url.Parse(a.Cfg.FrontendURL)
+	if err != nil {
+		return ""
 	}
-	// A site-relative path like "/JairusSW/wasi".
-	if strings.HasPrefix(raw, "/") && !strings.HasPrefix(raw, "//") {
-		return front + raw
+	ref, err := url.Parse(raw)
+	if err != nil {
+		return ""
 	}
-	return ""
+	target := base.ResolveReference(ref)
+	if target.Scheme != base.Scheme || !strings.EqualFold(target.Host, base.Host) {
+		return ""
+	}
+	return target.String()
 }
 
 // handleCLILogin starts the CLI login flow: it records the CLI's loopback port

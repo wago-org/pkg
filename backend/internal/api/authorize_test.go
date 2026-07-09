@@ -81,9 +81,10 @@ func TestSafeReturn(t *testing.T) {
 		"/JairusSW/wasi":                    "https://pkg.wago.sh/JairusSW/wasi",
 		"https://pkg.wago.sh":               "https://pkg.wago.sh",
 		"":                                  "",
-		"https://evil.com/x":                "", // other origin
-		"//evil.com":                        "", // protocol-relative
-		"https://pkg.wago.sh.evil.com/x":    "", // prefix trickery
+		"https://evil.com/x":                "",                                // other origin
+		"//evil.com":                        "",                                // protocol-relative
+		"/\\evil.com":                       "https://pkg.wago.sh/%5Cevil.com", // backslash → stays on our host
+		"https://pkg.wago.sh.evil.com/x":    "",                                // prefix trickery
 	}
 	for in, want := range cases {
 		if got := a.safeReturn(in); got != want {
