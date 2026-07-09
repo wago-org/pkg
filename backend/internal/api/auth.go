@@ -22,6 +22,11 @@ func (a *App) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.SetCookie(w, a.Sessions.NewStateCookie(state))
+	// Remember where to send the user afterward (the page they started from),
+	// same-origin only to avoid an open redirect.
+	if dest := a.safeReturn(r.URL.Query().Get("redirect")); dest != "" {
+		http.SetCookie(w, a.Sessions.NewReturnCookie(dest))
+	}
 	// ?star=1 additionally requests the public_repo scope so the registry can
 	// star repositories on the user's behalf.
 	star := r.URL.Query().Get("star") == "1"
@@ -102,7 +107,34 @@ func (a *App) handleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.SetCookie(w, a.Sessions.NewSessionCookie(u.ID))
-	http.Redirect(w, r, a.Cfg.FrontendURL+"/#/account", http.StatusFound)
+	// Return to the page the user started from, if we captured one; else /account.
+	dest := a.Cfg.FrontendURL + "/#/account"
+	if rt, ok := a.Sessions.ReturnDest(r); ok {
+		if safe := a.safeReturn(rt); safe != "" {
+			dest = safe
+		}
+		http.SetCookie(w, a.Sessions.ClearReturnCookie())
+	}
+	http.Redirect(w, r, dest, http.StatusFound)
+}
+
+// safeReturn validates a post-auth redirect target: it must land on our own
+// frontend (an absolute URL under FrontendURL, or a site-relative path), else "".
+// This prevents the OAuth flow from being used as an open redirect.
+func (a *App) safeReturn(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	front := strings.TrimRight(a.Cfg.FrontendURL, "/")
+	if raw == front || strings.HasPrefix(raw, front+"/") {
+		return raw
+	}
+	// A site-relative path like "/JairusSW/wasi".
+	if strings.HasPrefix(raw, "/") && !strings.HasPrefix(raw, "//") {
+		return front + raw
+	}
+	return ""
 }
 
 // handleCLILogin starts the CLI login flow: it records the CLI's loopback port

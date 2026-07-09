@@ -181,6 +181,47 @@ func (s *Sessions) ClearCLICookie() *http.Cookie {
 	return &http.Cookie{Name: CLICookieName, Path: "/", MaxAge: -1, Secure: !s.devMode, HttpOnly: true}
 }
 
+// ReturnCookieName carries where to send the user after OAuth (the page they
+// started from), across the round-trip to GitHub and back.
+const ReturnCookieName = "wago_return"
+
+// NewReturnCookie signs a post-auth return destination.
+func (s *Sessions) NewReturnCookie(dest string) *http.Cookie {
+	body, _ := json.Marshal(payload{UID: dest, Exp: time.Now().Add(oauthStateTTL).Unix()})
+	return &http.Cookie{
+		Name:     ReturnCookieName,
+		Value:    sign(body, s.secret),
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   !s.devMode,
+		MaxAge:   int(oauthStateTTL / time.Second),
+	}
+}
+
+// ReturnDest returns the signed return destination, or ("", false) if absent or
+// invalid.
+func (s *Sessions) ReturnDest(r *http.Request) (string, bool) {
+	c, err := r.Cookie(ReturnCookieName)
+	if err != nil {
+		return "", false
+	}
+	body, err := verify(c.Value, s.secret)
+	if err != nil {
+		return "", false
+	}
+	var p payload
+	if err := json.Unmarshal(body, &p); err != nil || time.Now().Unix() > p.Exp {
+		return "", false
+	}
+	return p.UID, true
+}
+
+// ClearReturnCookie expires the return cookie.
+func (s *Sessions) ClearReturnCookie() *http.Cookie {
+	return &http.Cookie{Name: ReturnCookieName, Path: "/", MaxAge: -1, Secure: !s.devMode, HttpOnly: true}
+}
+
 // ClearStateCookie expires the OAuth state cookie with the same security flags
 // it was set with (HttpOnly, Secure in prod, SameSite=Lax).
 func (s *Sessions) ClearStateCookie() *http.Cookie {

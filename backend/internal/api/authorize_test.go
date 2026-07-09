@@ -1,6 +1,10 @@
 package api
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/wago-org/registry-backend/internal/config"
+)
 
 func TestParseAuthors(t *testing.T) {
 	cases := map[string][2]string{ // input → {name, github}
@@ -66,6 +70,24 @@ func TestSameRepo(t *testing.T) {
 	for _, c := range cases {
 		if sameRepo(c.a, c.b) != c.want {
 			t.Errorf("sameRepo(%q, %q) = %v, want %v", c.a, c.b, sameRepo(c.a, c.b), c.want)
+		}
+	}
+}
+
+func TestSafeReturn(t *testing.T) {
+	a := &App{Cfg: config.Config{FrontendURL: "https://pkg.wago.sh"}}
+	cases := map[string]string{
+		"https://pkg.wago.sh/JairusSW/wasi": "https://pkg.wago.sh/JairusSW/wasi",
+		"/JairusSW/wasi":                    "https://pkg.wago.sh/JairusSW/wasi",
+		"https://pkg.wago.sh":               "https://pkg.wago.sh",
+		"":                                  "",
+		"https://evil.com/x":                "", // other origin
+		"//evil.com":                        "", // protocol-relative
+		"https://pkg.wago.sh.evil.com/x":    "", // prefix trickery
+	}
+	for in, want := range cases {
+		if got := a.safeReturn(in); got != want {
+			t.Errorf("safeReturn(%q) = %q, want %q", in, got, want)
 		}
 	}
 }
