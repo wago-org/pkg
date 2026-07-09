@@ -1088,8 +1088,7 @@ function pkgSidebar(s: AppState): string {
         metaRow(metaCell("Last publish", relative(p.updatedAt)), false) +
         metaRow(metaCell("Unpacked size", p.unpackedKB ? `${p.unpackedKB} kB` : "—"), true) +
         // Forks + Issues share a single split row.
-        splitRow(metaCell("Forks", (p.forks ?? 0).toLocaleString()), metaCell("Issues", openIssues.toLocaleString()), true) +
-        metaRow(metaCell("Owner", p.ownerLogin ? `@${p.ownerLogin}` : "—"), true);
+        splitRow(metaCell("Forks", (p.forks ?? 0).toLocaleString()), metaCell("Issues", openIssues.toLocaleString()), true);
 
     // compatibility (engines + platforms)
     const engines = p.compatibility?.engines || {};
@@ -1195,6 +1194,7 @@ function pkgSidebar(s: AppState): string {
         <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;color:${C.muted};text-transform:uppercase;margin-bottom:10px">Authors</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">${authors || `<span style="font-size:13px;color:${C.muted}">—</span>`}</div>
       </div>
+      ${publishersSection(p)}
       ${
           contributors
               ? `<div style="padding:15px 0;border-top:1px solid ${C.line}">
@@ -1211,6 +1211,28 @@ function pkgSidebar(s: AppState): string {
       }
       ${reportLink(s)}
     </aside>`;
+}
+
+// publishersSection is the read-only "who can publish" panel in the sidebar: the
+// owner (marked) plus any granted publishers. Repo authors/admins can also
+// publish; the owner edits the grants in Settings → Publishers.
+function publishersSection(p: Package): string {
+    const rows: { login: string; owner: boolean }[] = [
+        ...(p.ownerLogin ? [{ login: p.ownerLogin, owner: true }] : []),
+        ...(p.allowedPublishers || []).map((login) => ({ login, owner: false })),
+    ];
+    if (!rows.length) return "";
+    const row = (login: string, owner: boolean): string =>
+        `<div style="display:flex;align-items:center;gap:8px">
+      ${profileLinkWrap(login, ghAvatarSpan(login, login, login[0].toUpperCase(), avatarBgFor(login), undefined, 24, 10))}
+      <span style="flex:1;min-width:0;font-size:13px;color:${C.soft};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">@${esc(login)}</span>
+      ${owner ? `<span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:${C.muted};background:${C.deep};border:1px solid ${C.line};padding:2px 7px;border-radius:100px;flex-shrink:0">owner</span>` : ""}
+    </div>`;
+    return `<div style="padding:15px 0;border-top:1px solid ${C.line}">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;color:${C.muted};text-transform:uppercase;margin-bottom:10px">Publishers</div>
+      <div style="display:flex;flex-direction:column;gap:9px">${rows.map((r) => row(r.login, r.owner)).join("")}</div>
+      <div style="font-size:11px;color:${C.muted};margin-top:9px;line-height:1.4">The repo's authors/admins can also publish.</div>
+    </div>`;
 }
 
 // canManagePackage reports whether the viewer may open the package's Settings tab:
