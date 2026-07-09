@@ -45,12 +45,12 @@ type publishRequest struct {
 	Tags       []string       `json:"tags"`
 }
 
-// authorizeRepo verifies the publisher has write access (owner / maintainer /
-// collaborator) to the manifest's GitHub repository, so a package can only be
-// published by someone who actually contributes to the repo it points at. Public
-// repos verify with any signed-in user's token; a private repo needs `repo` scope
-// (else it reads as inaccessible and is rejected).
-func (a *App) authorizeRepo(u *model.User, repository string) error {
+// authorizePublish decides whether u may publish the package pointing at
+// repository. The default is author-only: the repo's owner / org admins (GitHub
+// "admin" permission) can always publish. Anyone else — an org member or a
+// collaborator — may publish only if the package owner has added their login to
+// AllowedPublishers, and they still have write access to the repo.
+func (a *App) authorizePublish(u *model.User, repository string, p model.Package, existed bool) error {
 	owner, repo, ok := parseGitHubRepo(repository)
 	if !ok {
 		return errors.New("manifest.repository must be a GitHub URL, e.g. https://github.com/owner/repo")
@@ -58,16 +58,53 @@ func (a *App) authorizeRepo(u *model.User, repository string) error {
 	if u.GitHubToken == "" {
 		return fmt.Errorf("re-run `wago auth login` so we can verify your access to github.com/%s/%s", owner, repo)
 	}
-	perm, err := a.GitHub.RepoPermission(u.GitHubToken, owner, repo)
+	perm, isOrg, err := a.GitHub.RepoAccess(u.GitHubToken, owner, repo)
 	if err != nil {
 		return fmt.Errorf("can't verify access to github.com/%s/%s — confirm it exists and that you can see it", owner, repo)
 	}
-	switch perm {
-	case "admin", "maintain", "write":
+	// The author / org admin always publishes.
+	if perm == "admin" {
 		return nil
 	}
-	return fmt.Errorf("publishing github.com/%s/%s requires write access to it (yours: %s)", owner, repo, perm)
+	// A configured publisher who still has push access to the repo.
+	if existed && containsFold(p.AllowedPublishers, u.Login) && hasWrite(perm) {
+		return nil
+	}
+	// Rejected — point them at how to get access.
+	who := "the repo's author"
+	if isOrg {
+		who = "an org owner/admin"
+	}
+	return fmt.Errorf("publishing github.com/%s/%s is limited to its author; ask %s to add you as a publisher in the package settings (your access: %s)", owner, repo, who, perm)
 }
+
+// hasWrite reports whether perm grants write (push) access or better.
+func hasWrite(perm string) bool {
+	switch perm {
+	case "admin", "maintain", "write":
+		return true
+	}
+	return false
+}
+
+// containsFold reports whether list contains s, case-insensitively.
+func containsFold(list []string, s string) bool {
+	for _, v := range list {
+		if strings.EqualFold(v, s) {
+			return true
+		}
+	}
+	return false
+}
+
+// sameRepo reports whether two repository URLs point at the same owner/repo.
+func sameRepo(a, b string) bool {
+	ao, ar, aok := parseGitHubRepo(a)
+	bo, br, bok := parseGitHubRepo(b)
+	return aok && bok && strings.EqualFold(ao, bo) && strings.EqualFold(ar, br)
+}
+
+// shortFromModule derives a package short id from a module path: the last path
 
 // shortFromModule derives a package short id from a module path: the last path
 // element with a leading "wago-" or "wago_" stripped.
@@ -106,25 +143,29 @@ func (a *App) handlePublish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Authorization: the publisher must have write access to the GitHub repo the
-	// manifest points at — proof they maintain / contribute to it.
-	if err := a.authorizeRepo(u, req.Manifest.Repository); err != nil {
-		httpx.WriteError(w, http.StatusForbidden, err.Error())
-		return
-	}
-
 	short := shortFromModule(req.Manifest.Module)
 	p, existed := a.Store.GetPackage(short)
 	if !existed {
 		p = model.Package{Short: short, CreatedAt: time.Now().UTC().Format(time.RFC3339)}
 	}
 
-	// Ownership: first publisher becomes owner; later publishes require the owner.
+	// A published package is pinned to its repository; a re-publish can't swap it.
+	if existed && p.Repository != "" && !sameRepo(p.Repository, req.Manifest.Repository) {
+		httpx.WriteError(w, http.StatusForbidden, fmt.Sprintf("%s is published from %s; change it there, not to %s", short, p.Repository, req.Manifest.Repository))
+		return
+	}
+
+	// Authorization: publishing is author-only (the repo's owner / org admin) by
+	// default; other people publish only if the owner has added them to the
+	// package's allowed publishers.
+	if err := a.authorizePublish(u, req.Manifest.Repository, p, existed); err != nil {
+		httpx.WriteError(w, http.StatusForbidden, err.Error())
+		return
+	}
+
+	// The first publisher (an authorized author) becomes the package owner.
 	if p.OwnerLogin == "" {
 		p.OwnerLogin = u.Login
-	} else if p.OwnerLogin != u.Login {
-		httpx.WriteError(w, http.StatusForbidden, "not the package owner")
-		return
 	}
 
 	p.Name = req.Manifest.Module

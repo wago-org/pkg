@@ -910,6 +910,39 @@ async function doTakedown(): Promise<void> {
     }
 }
 
+// savePublishers persists the package's allowed-publisher list and updates state.
+async function savePublishers(next: string[]): Promise<void> {
+    const p = state.pkg;
+    if (!p) return;
+    try {
+        const updated = await api.setPublishers(p.short, next);
+        if (state.pkg?.short === p.short) state.pkg.allowedPublishers = updated.allowedPublishers || [];
+    } catch {
+        alert("Couldn't update publishers — you may not have permission.");
+    }
+    render();
+}
+
+async function addPublisher(): Promise<void> {
+    const p = state.pkg;
+    const login = state.publisherDraft.trim().replace(/^@/, "");
+    if (!p || !login) return;
+    const list = p.allowedPublishers || [];
+    if (!list.some((x) => x.toLowerCase() === login.toLowerCase())) {
+        state.publisherDraft = "";
+        await savePublishers([...list, login]);
+    } else {
+        state.publisherDraft = "";
+        render();
+    }
+}
+
+async function removePublisher(login: string): Promise<void> {
+    const p = state.pkg;
+    if (!p) return;
+    await savePublishers((p.allowedPublishers || []).filter((x) => x.toLowerCase() !== login.toLowerCase()));
+}
+
 function dispatch(act: string, arg: string | null, el: HTMLElement): void {
     switch (act) {
         case "home":
@@ -1029,6 +1062,12 @@ function dispatch(act: string, arg: string | null, el: HTMLElement): void {
             break;
         case "takedown":
             void doTakedown();
+            break;
+        case "publisher-add":
+            void addPublisher();
+            break;
+        case "publisher-remove":
+            if (arg) void removePublisher(arg);
             break;
         case "composer-open":
             if (!state.user) {
@@ -1237,6 +1276,7 @@ function wireEvents(): void {
         else if (act === "bio") state.bioDraft = value;
         else if (act === "comment-draft") state.commentDraft = value;
         else if (act === "report-detail") state.reportDetail = value;
+        else if (act === "publisher-draft") state.publisherDraft = value;
         else if (act === "comment-edit-draft") state.commentEditDraft = value;
         else if (act === "reply-draft") state.replyDraft = value;
         else if (act === "email-draft") state.emailDraft = value;

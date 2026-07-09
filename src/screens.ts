@@ -1190,8 +1190,36 @@ function pkgSidebar(s: AppState): string {
               ? `<a href="${escAttr(p.repository)}" target="_blank" rel="noopener" style="text-decoration:none;text-align:center;margin-top:14px;margin-bottom:6px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${C.bg};background:${C.lilac};padding:11px;border-radius:10px">Repository ↗</a>`
               : ""
       }
+      ${publishersEditor(s)}
       ${moderationLinks(s)}
     </aside>`;
+}
+
+// publishersEditor lets the package owner (or a site admin) grant publish rights
+// to extra GitHub logins — publishing is author-only until they do.
+function publishersEditor(s: AppState): string {
+    const p = s.pkg!;
+    const me = s.user?.login?.toLowerCase();
+    const owner = (p.ownerLogin || "").toLowerCase();
+    if (!me || (me !== owner && !s.user?.admin)) return "";
+    const list = p.allowedPublishers || [];
+    const chips = list.length
+        ? list
+              .map(
+                  (login) =>
+                      `<span style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:${C.text};background:${C.deep};border:1px solid ${C.line2};border-radius:8px;padding:3px 6px 3px 9px">@${esc(login)}<button data-act="publisher-remove" data-arg="${escAttr(login)}" title="Remove" style="font-family:'Outfit',sans-serif;font-size:14px;line-height:1;color:${C.muted};background:transparent;border:none;padding:0 2px;cursor:pointer">×</button></span>`,
+              )
+              .join("")
+        : `<span style="font-size:12px;color:${C.muted}">Author-only — only @${esc(p.ownerLogin || "")} and the repo's admins can publish.</span>`;
+    return `<div style="margin-top:16px;padding-top:14px;border-top:1px solid ${C.line}">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;color:${C.muted};text-transform:uppercase;margin-bottom:8px">Publishers</div>
+      <p style="font-size:12px;line-height:1.5;color:${C.muted};margin:0 0 10px">Extra logins allowed to publish new versions, beyond the repo's authors/admins.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${chips}</div>
+      <div style="display:flex;gap:6px">
+        <input data-act="publisher-draft" value="${escAttr(s.publisherDraft)}" placeholder="github login" spellcheck="false" style="flex:1;min-width:0;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:${C.text};background:${C.deep};border:1px solid ${C.line2};border-radius:9px;padding:8px 10px" />
+        <button data-act="publisher-add" style="flex-shrink:0;font-family:'Outfit',sans-serif;font-weight:700;font-size:12.5px;color:${C.bg};background:${C.lilac};border:none;padding:8px 14px;border-radius:9px;cursor:pointer">Add</button>
+      </div>
+    </div>`;
 }
 
 // moderationLinks renders the report link (any signed-in user) and, for site

@@ -195,6 +195,7 @@ func (a *App) NewRouter() http.Handler {
 	mux.HandleFunc("DELETE /api/packages/{name}", a.handleUnpublishPackage)
 	mux.HandleFunc("DELETE /api/packages/{name}/versions/{version}", a.handleUnpublishVersion)
 	mux.HandleFunc("POST /api/packages/{name}/deprecate", a.handleDeprecate)
+	mux.HandleFunc("PUT /api/packages/{name}/publishers", a.handleSetPublishers)
 
 	return httpx.CORS(a.Cfg.FrontendURL, mux)
 }

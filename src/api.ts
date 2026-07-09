@@ -336,6 +336,13 @@ export async function takedownPackage(short: string): Promise<void> {
     await apiSend(`/api/packages/${short}`, "DELETE");
 }
 
+// setPublishers replaces a package's allowed-publishers list (owner / admin).
+// Returns the updated package.
+export async function setPublishers(short: string, publishers: string[]): Promise<Package> {
+    const raw = await apiSend<RawPackage>(`/api/packages/${short}/publishers`, "PUT", { publishers });
+    return normalizePackage(raw);
+}
+
 // ── comments ─────────────────────────────────────────────────────────────────
 
 export async function loadComments(pkg: Package, user: User | null): Promise<Comment[]> {
