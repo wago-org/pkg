@@ -67,4 +67,5 @@ type Store interface {
 	InstallSeries(short string, sinceDays int) []InstallPoint
 	InstallTotal(short string) int
 	InstallWeek(short string) int
+	InstallMonth(short string) int
 }

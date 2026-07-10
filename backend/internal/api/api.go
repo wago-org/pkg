@@ -254,9 +254,12 @@ func (a *App) decoratePackage(p model.Package, viewerID string) map[string]any {
 	}
 
 	week := a.Store.InstallWeek(p.Short)
+	month := a.Store.InstallMonth(p.Short)
 	total := a.Store.InstallTotal(p.Short)
 	m["installsWeek"] = week
 	m["installsWeekLabel"] = compactCount(week)
+	m["installsMonth"] = month
+	m["installsMonthLabel"] = compactCount(month)
 	m["installsTotal"] = total
 
 	return m

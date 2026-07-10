@@ -358,7 +358,7 @@ function featuredCard(p: Package): string {
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">${tagPills(p.tags)}</div>
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px">${starMetric(p, 12.5)}</div>
           <div style="display:flex;align-items:center;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.muted};border-top:1px solid ${C.line};padding-top:12px">
-            <span>↓ ${esc(p.installsWeekLabel)}/wk</span>
+            <span>↓ ${esc(p.installsMonthLabel)}/mo</span>
             <span style="color:${C.dim}">${esc(p.version)}</span>
           </div>
         </a>`;
@@ -472,7 +472,7 @@ function searchRow(p: Package): string {
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:13px">${tagPills(p.tags)}</div>
           <div style="display:flex;align-items:center;gap:20px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.muted};flex-wrap:wrap">
             <span style="display:flex;align-items:center;gap:6px">${starMetric(p, 12.5)}<span style="color:${C.dim}">stars</span></span>
-            <span>↓ ${esc(p.installsWeekLabel)}/wk</span>
+            <span>↓ ${esc(p.installsMonthLabel)}/mo</span>
             <span>updated ${esc(relative(p.updatedAt))}</span>
           </div>
         </a>`;

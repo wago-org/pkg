@@ -595,6 +595,30 @@ function enrichGithubStars(): void {
     });
 }
 
+// enrichCatalogStars refreshes the catalog's star counts from GitHub so the home
+// and search cards show real stargazers, not the seed baseline (which is stuck at
+// the publish-time value). Each repo is fetched once and cached/deduped by
+// github.ts; a re-render lands when the visible list changes.
+function enrichCatalogStars(): void {
+    const packages = state.registry?.packages;
+    if (!packages) return;
+    for (const p of packages) {
+        const repo = github.parseRepo(p.repository) || github.parseRepo(p.name);
+        if (!repo) continue;
+        const cached = github.starsFor(repo.owner, repo.repo);
+        if (cached != null) {
+            p.stars = cached;
+            continue;
+        }
+        void github.fetchRepo(repo.owner, repo.repo).then((r) => {
+            if (!r) return;
+            p.stars = r.stars;
+            if (typeof r.forks === "number") p.forks = r.forks;
+            if (state.screen === "home" || state.screen === "search") render();
+        });
+    }
+}
+
 // Sync the Issues tab from the live GitHub API for this package's repo.
 async function syncIssues(): Promise<void> {
     const pkg = state.pkg;
@@ -1568,6 +1592,7 @@ export async function init(): Promise<void> {
         return;
     }
     state.user = await api.getMe();
+    enrichCatalogStars(); // real GitHub stargazers for the home/search cards
     await completePendingStar();
     await route();
 }

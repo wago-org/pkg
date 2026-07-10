@@ -680,14 +680,23 @@ func (s *JSONStore) InstallTotal(short string) int {
 
 // InstallWeek returns the sum of installs over the last 7 days (today inclusive).
 func (s *JSONStore) InstallWeek(short string) int {
+	return s.installWindow(short, 7)
+}
+
+func (s *JSONStore) InstallMonth(short string) int {
+	return s.installWindow(short, 30)
+}
+
+// installWindow sums a package's installs over the last n days (inclusive of today).
+func (s *JSONStore) installWindow(short string, n int) int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	now := time.Now().UTC()
 	days := s.doc.Installs[short]
-	week := 0
-	for d := 0; d < 7; d++ {
+	sum := 0
+	for d := 0; d < n; d++ {
 		date := now.AddDate(0, 0, -d).Format("2006-01-02")
-		week += days[date]
+		sum += days[date]
 	}
-	return week
+	return sum
 }
