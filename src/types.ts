@@ -144,6 +144,8 @@ export interface Package {
     starred?: boolean;
     installsWeek: number;
     installsWeekLabel: string;
+    installsMonth: number;
+    installsMonthLabel: string;
     installsTotal?: number;
 
     issues?: Issue[];

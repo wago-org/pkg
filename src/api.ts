@@ -14,6 +14,7 @@ import type {
     Registry,
     Report,
     Review,
+    StatDef,
     User,
     UserEmail,
     ViewUser,
@@ -63,7 +64,29 @@ export async function loadRegistry(): Promise<Registry> {
     } catch {
         packages = file.packages.map(normalizePackage);
     }
-    return { packages, stats: file.stats, categories: file.categories };
+    // The static index ships zeroed placeholder stats; derive the headline numbers
+    // from the packages actually loaded so the hero reflects reality.
+    return { packages, stats: computeStats(packages, file.stats), categories: file.categories };
+}
+
+// computeStats derives the three hero figures (packages, installs/month,
+// contributors) from the live catalog. Falls back to the static index stats only
+// when there are no packages to summarise.
+function computeStats(packages: Package[], fallback: StatDef[]): StatDef[] {
+    if (!packages.length) return fallback;
+    const installs = packages.reduce((sum, p) => sum + (p.installsMonth || 0), 0);
+    // Distinct maintainer logins across the catalog: owners, authors, contributors.
+    const people = new Set<string>();
+    for (const p of packages) {
+        if (p.ownerLogin) people.add(p.ownerLogin.toLowerCase());
+        for (const a of p.authors || []) if (a.github) people.add(a.github.toLowerCase());
+        for (const c of p.contributors || []) people.add(c.toLowerCase());
+    }
+    return [
+        { value: compactNum(packages.length), label: "packages" },
+        { value: compactNum(installs), label: "installs / month" },
+        { value: compactNum(people.size), label: "contributors" },
+    ];
 }
 
 // Fill in derived fields so a static-index package and a backend package render
@@ -73,6 +96,9 @@ export function normalizePackage(raw: RawPackage): Package {
     const latest = versions.find((v) => v.latest) || versions[0];
     const installsWeek =
         raw.installsWeek ?? (raw as { installBaseWeek?: number }).installBaseWeek ?? 0;
+    // Monthly installs: real 30-day count from the backend, else ~4.3× the weekly
+    // baseline so a static-index package still shows a sensible per-month figure.
+    const installsMonth = raw.installsMonth ?? Math.round(installsWeek * 4.3);
     const tags = raw.tags || [];
     const keywords = raw.keywords || raw.tags || [];
     return {
@@ -112,6 +138,8 @@ export function normalizePackage(raw: RawPackage): Package {
         starred: raw.starred,
         installsWeek,
         installsWeekLabel: raw.installsWeekLabel || compactNum(installsWeek),
+        installsMonth,
+        installsMonthLabel: raw.installsMonthLabel || compactNum(installsMonth),
         installsTotal: raw.installsTotal ?? 0,
         issues: raw.issues || [],
     };
