@@ -12,7 +12,7 @@
 import { esc } from "./util.js";
 
 type MarkedFn = {
-    (src: string): string;
+    (src: string, opts?: { breaks?: boolean }): string;
     setOptions(opts: { gfm?: boolean; breaks?: boolean }): void;
 };
 type Purify = {
@@ -178,8 +178,12 @@ export function renderMarkdown(src: string, opts: MdOptions = {}): string {
     const source = opts.mentions === false ? input : linkifyMentions(input);
     activeBase = opts.base ?? null;
     try {
-        // Highlight fenced code for rich (README) renders only.
-        const rawHtml = opts.images ? highlightBlocks(marked(source)) : marked(source);
+        // READMEs are standard Markdown (a single newline is a soft wrap, so a
+        // hard-wrapped paragraph flows as one line); comments keep GFM line breaks
+        // so a user's newlines are preserved. Highlight fenced code for READMEs.
+        const rawHtml = opts.images
+            ? highlightBlocks(marked(source, { breaks: false }))
+            : marked(source, { breaks: true });
         return purify.sanitize(rawHtml, {
             ALLOWED_TAGS: opts.images ? RICH_TAGS : ALLOWED_TAGS,
             ALLOWED_ATTR: opts.images ? RICH_ATTR : ALLOWED_ATTR,
