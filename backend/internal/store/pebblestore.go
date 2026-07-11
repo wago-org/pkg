@@ -54,6 +54,7 @@ const (
 	kpInstall = 'i'
 	kpToken   = 't'
 	kpReport  = 'R'
+	kpNotif   = 'N'
 )
 
 // OpenPebble opens (creating if needed) a Pebble store at dir and loads the whole
@@ -118,6 +119,11 @@ func (s *PebbleStore) loadAll() error {
 			var r model.Report
 			if json.Unmarshal(v, &r) == nil {
 				s.doc.Reports[r.ID] = r
+			}
+		case kpNotif:
+			var n model.Notification
+			if json.Unmarshal(v, &n) == nil {
+				s.doc.Notifications[n.ID] = n
 			}
 		case kpStar:
 			if short, uid, ok := split2(body); ok {
@@ -715,6 +721,66 @@ func (s *PebbleStore) ResolveReport(id, byLogin string) (model.Report, bool) {
 	r.ResolvedAt = nowRFC3339()
 	s.doc.Reports[id] = r
 	return r, s.putJSON(recKey(kpReport, id), r) == nil
+}
+
+// --- Notifications ---
+
+func (s *PebbleStore) AddNotification(n model.Notification) (model.Notification, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n.ID = newID()
+	n.CreatedAt = nowRFC3339()
+	if n.Status == "" {
+		n.Status = model.NotifyPending
+	}
+	s.doc.Notifications[n.ID] = n
+	return n, s.putJSON(recKey(kpNotif, n.ID), n)
+}
+
+func (s *PebbleStore) GetNotification(id string) (model.Notification, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	n, ok := s.doc.Notifications[id]
+	return n, ok
+}
+
+func (s *PebbleStore) NotificationsForRecipient(login string) []model.Notification {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []model.Notification
+	for _, n := range s.doc.Notifications {
+		if strings.EqualFold(n.Recipient, login) {
+			out = append(out, n)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt > out[j].CreatedAt })
+	return out
+}
+
+func (s *PebbleStore) PendingNotifications(short, kind string) []model.Notification {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []model.Notification
+	for _, n := range s.doc.Notifications {
+		if n.PackageShort == short && n.Kind == kind && n.Status == model.NotifyPending {
+			out = append(out, n)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt > out[j].CreatedAt })
+	return out
+}
+
+func (s *PebbleStore) SetNotificationStatus(id, status string) (model.Notification, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n, ok := s.doc.Notifications[id]
+	if !ok {
+		return model.Notification{}, false
+	}
+	n.Status = status
+	n.ResolvedAt = nowRFC3339()
+	s.doc.Notifications[id] = n
+	return n, s.putJSON(recKey(kpNotif, id), n) == nil
 }
 
 func (s *PebbleStore) DeleteComment(id string) error {

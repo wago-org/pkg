@@ -5,6 +5,7 @@
 import type { AppState } from "./state.js";
 import type {
     Comment,
+    Notification,
     Package,
     Review,
     Stability,
@@ -147,6 +148,7 @@ export function nav(s: AppState): string {
   <div style="display:flex;align-items:center;gap:14px;flex-shrink:0">
     <a href="/" data-act="home" class="r-navbrowse" style="text-decoration:none;font-size:14px;font-weight:600;color:${homeColor}">Browse</a>
     <a href="https://github.com/wago-org/wago" target="_blank" rel="noopener" style="text-decoration:none;padding:9px 16px;border-radius:9px;background:${C.lilac};color:${C.bg};font-weight:700;font-size:14px">Publish ↗</a>
+    ${notifBell(s)}
     ${right}
   </div>
 </nav>`;
@@ -154,6 +156,67 @@ export function nav(s: AppState): string {
 
 function signInButton(): string {
     return `<a href="/auth" data-act="auth" style="text-decoration:none;padding:8px 15px;border-radius:9px;border:1px solid ${C.line2};color:${C.text};font-weight:600;font-size:14px">Sign in</a>`;
+}
+
+// notifBell is the inbox affordance in the nav (signed-in only), with a count
+// badge when there are pending invites.
+function notifBell(s: AppState): string {
+    if (!s.user) return "";
+    const pending = (s.notifications || []).filter((n) => n.status === "pending").length;
+    const active = s.screen === "notifications";
+    const badge = pending
+        ? `<span style="position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;padding:0 4px;border-radius:100px;background:${C.pink};color:${C.bg};font-size:10px;font-weight:800;line-height:16px;text-align:center">${pending > 9 ? "9+" : pending}</span>`
+        : "";
+    return `<a href="/notifications" data-act="notifications" title="Notifications" style="position:relative;display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:9px;border:1px solid ${active ? C.lilac : C.line2};color:${active ? C.lilac : C.text};text-decoration:none;font-size:16px">🔔${badge}</a>`;
+}
+
+// notificationsScreen is the signed-in user's inbox: pending publish invites and
+// ownership-transfer offers to accept or decline, plus a resolved history.
+export function notificationsScreen(s: AppState): string {
+    const list = s.notifications;
+    const body =
+        list === null
+            ? `<div style="color:${C.muted};font-size:14px;padding:24px 0">Loading…</div>`
+            : list.length === 0
+              ? `<div style="color:${C.muted};font-size:14px;padding:24px 0">You're all caught up — no notifications.</div>`
+              : list.map(notificationCard).join("");
+    return `<div style="max-width:720px;margin:0 auto;padding:36px 0 80px">
+      <h1 style="font-family:'Outfit',sans-serif;font-weight:800;font-size:26px;margin:0 0 4px;color:${C.text}">Notifications</h1>
+      <p style="font-size:13.5px;color:${C.muted};margin:0 0 22px">Invites to publish packages and offers to take ownership.</p>
+      <div style="display:flex;flex-direction:column;gap:12px">${body}</div>
+    </div>`;
+}
+
+// notificationCard renders one inbox item. Pending items get Accept/Decline;
+// resolved items are muted and show their outcome.
+function notificationCard(n: Notification): string {
+    const pkg = esc(n.packageShort);
+    const from = esc(n.fromLogin || "");
+    const link = `/${encodeURIComponent(n.fromLogin || "")}/${encodeURIComponent(n.packageShort)}`;
+    const line =
+        n.kind === "transfer"
+            ? `<strong style="color:${C.text}">@${from}</strong> wants to transfer ownership of <a href="${escAttr(link)}" style="color:${C.lilac};text-decoration:none;font-weight:700">${pkg}</a> to you`
+            : `<strong style="color:${C.text}">@${from}</strong> invited you to publish <a href="${escAttr(link)}" style="color:${C.lilac};text-decoration:none;font-weight:700">${pkg}</a>`;
+    const when = n.createdAt ? relativeDate(n.createdAt) : "";
+    let action: string;
+    if (n.status === "pending") {
+        action = `<div style="display:flex;gap:8px;flex-shrink:0">
+          <button data-act="notif-accept" data-arg="${escAttr(n.id)}" style="font-family:'Outfit',sans-serif;font-weight:700;font-size:13px;color:${C.bg};background:${C.lilac};border:none;padding:8px 16px;border-radius:9px;cursor:pointer">Accept</button>
+          <button data-act="notif-decline" data-arg="${escAttr(n.id)}" style="font-family:'Outfit',sans-serif;font-weight:700;font-size:13px;color:${C.soft};background:transparent;border:1px solid ${C.line2};padding:8px 16px;border-radius:9px;cursor:pointer">Decline</button>
+        </div>`;
+    } else {
+        const label = n.status === "accepted" ? "Accepted" : "Declined";
+        const col = n.status === "accepted" ? C.green : C.muted;
+        action = `<span style="flex-shrink:0;font-size:12.5px;font-weight:700;color:${col}">${label}</span>`;
+    }
+    const dim = n.status === "pending" ? "" : "opacity:0.6;";
+    return `<div style="display:flex;align-items:center;gap:16px;background:${C.panel};border:1px solid ${C.line};border-radius:13px;padding:16px 18px;${dim}">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;line-height:1.5;color:${C.soft}">${line}</div>
+        ${when ? `<div style="font-size:11.5px;color:${C.muted};margin-top:4px">${esc(when)}</div>` : ""}
+      </div>
+      ${action}
+    </div>`;
 }
 
 function avatarSpan(
@@ -1250,27 +1313,34 @@ function settingsTab(s: AppState): string {
     </div>`;
 }
 
-// publishersBody is the allowed-publishers editor: chips with remove buttons + an
-// add input.
+// publishersBody is the allowed-publishers editor: accepted publishers as chips
+// (with remove), any outstanding invites as pending chips (with cancel), and an
+// add input that sends a new invite.
 function publishersBody(s: AppState): string {
     const p = s.pkg!;
     const list = p.allowedPublishers || [];
-    const chips = list.length
-        ? list
-              .map(
-                  (login) =>
-                      `<span style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:${C.text};background:${C.deep};border:1px solid ${C.line2};border-radius:8px;padding:3px 6px 3px 9px">@${esc(login)}<button data-act="publisher-remove" data-arg="${escAttr(login)}" title="Remove" style="font-family:'Outfit',sans-serif;font-size:14px;line-height:1;color:${C.muted};background:transparent;border:none;padding:0 2px;cursor:pointer">×</button></span>`,
-              )
-              .join("")
-        : `<span style="font-size:12.5px;color:${C.muted}">Author-only — only @${esc(p.ownerLogin || "")} and the repo's admins can publish.</span>`;
+    const pending = p.pendingPublishers || [];
+    const acceptedChips = list.map(
+        (login) =>
+            `<span style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:${C.text};background:${C.deep};border:1px solid ${C.line2};border-radius:8px;padding:3px 6px 3px 9px">@${esc(login)}<button data-act="publisher-remove" data-arg="${escAttr(login)}" title="Remove" style="font-family:'Outfit',sans-serif;font-size:14px;line-height:1;color:${C.muted};background:transparent;border:none;padding:0 2px;cursor:pointer">×</button></span>`,
+    );
+    const pendingChips = pending.map(
+        (inv) =>
+            `<span title="Invited — awaiting acceptance" style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:${C.soft};background:transparent;border:1px dashed ${C.line2};border-radius:8px;padding:3px 6px 3px 9px">@${esc(inv.login)}<span style="font-size:10px;font-weight:700;color:${C.muted};text-transform:uppercase;letter-spacing:0.5px">pending</span><button data-act="publisher-cancel" data-arg="${escAttr(inv.id)}" title="Cancel invite" style="font-family:'Outfit',sans-serif;font-size:14px;line-height:1;color:${C.muted};background:transparent;border:none;padding:0 2px;cursor:pointer">×</button></span>`,
+    );
+    const chips =
+        acceptedChips.length || pendingChips.length
+            ? [...acceptedChips, ...pendingChips].join("")
+            : `<span style="font-size:12.5px;color:${C.muted}">Author-only — only @${esc(p.ownerLogin || "")} and the repo's admins can publish.</span>`;
     return `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">${chips}</div>
       <div data-pub-search style="position:relative;max-width:360px">
         <div style="display:flex;gap:6px">
           <input data-act="publisher-draft" value="${escAttr(s.publisherDraft)}" placeholder="search GitHub username" spellcheck="false" autocomplete="off" style="flex:1;min-width:0;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:${C.text};background:${C.deep};border:1px solid ${C.line2};border-radius:9px;padding:8px 10px" />
-          <button data-act="publisher-add" style="flex-shrink:0;font-family:'Outfit',sans-serif;font-weight:700;font-size:12.5px;color:${C.bg};background:${C.lilac};border:none;padding:8px 14px;border-radius:9px;cursor:pointer">Add</button>
+          <button data-act="publisher-add" style="flex-shrink:0;font-family:'Outfit',sans-serif;font-weight:700;font-size:12.5px;color:${C.bg};background:${C.lilac};border:none;padding:8px 14px;border-radius:9px;cursor:pointer">Invite</button>
         </div>
         <div class="pub-dropdown" style="position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:30">${publisherDropdownHtml(s)}</div>
-      </div>`;
+      </div>
+      <div style="font-size:11.5px;color:${C.muted};margin-top:9px;line-height:1.5">Invited publishers appear in their notifications and can publish once they accept.</div>`;
 }
 
 // publisherDropdownHtml builds the GitHub-search autocomplete under the publisher
@@ -1280,7 +1350,12 @@ function publishersBody(s: AppState): string {
 export function publisherDropdownHtml(s: AppState): string {
     const p = s.pkg;
     if (!p) return "";
-    const already = new Set((p.allowedPublishers || []).map((x) => x.toLowerCase()).concat((p.ownerLogin || "").toLowerCase()));
+    const already = new Set(
+        (p.allowedPublishers || [])
+            .map((x) => x.toLowerCase())
+            .concat((p.ownerLogin || "").toLowerCase())
+            .concat((p.pendingPublishers || []).map((x) => x.login.toLowerCase())),
+    );
     const results = (s.publisherResults || []).filter((u) => !already.has(u.login.toLowerCase()));
     if (!results.length) return "";
     return `<div style="background:${C.panel};border:1px solid ${C.line2};border-radius:10px;box-shadow:0 20px 40px -16px rgba(0,0,0,.7);overflow:hidden">

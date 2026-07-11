@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,6 +26,8 @@ type doc struct {
 	Installs map[string]map[string]int    `json:"installs"` // short -> YYYY-MM-DD -> count
 	Reports  map[string]model.Report      `json:"reports"`  // reportID -> report
 	Tokens   map[string]model.APIToken    `json:"tokens"`   // tokenID -> token (hash only)
+
+	Notifications map[string]model.Notification `json:"notifications"` // notifID -> notification
 }
 
 // JSONStore is a Store backed by a single JSON file, guarded by an RWMutex and
@@ -71,6 +74,8 @@ func emptyDoc() doc {
 		Installs: map[string]map[string]int{},
 		Reports:  map[string]model.Report{},
 		Tokens:   map[string]model.APIToken{},
+
+		Notifications: map[string]model.Notification{},
 	}
 }
 
@@ -102,6 +107,9 @@ func (s *JSONStore) normalize() {
 	}
 	if s.doc.Reports == nil {
 		s.doc.Reports = map[string]model.Report{}
+	}
+	if s.doc.Notifications == nil {
+		s.doc.Notifications = map[string]model.Notification{}
 	}
 }
 
@@ -626,6 +634,66 @@ func (s *JSONStore) ResolveReport(id, byLogin string) (model.Report, bool) {
 	r.ResolvedAt = nowRFC3339()
 	s.doc.Reports[id] = r
 	return r, s.persistLocked() == nil
+}
+
+// --- Notifications ---
+
+func (s *JSONStore) AddNotification(n model.Notification) (model.Notification, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n.ID = newID()
+	n.CreatedAt = nowRFC3339()
+	if n.Status == "" {
+		n.Status = model.NotifyPending
+	}
+	s.doc.Notifications[n.ID] = n
+	return n, s.persistLocked()
+}
+
+func (s *JSONStore) GetNotification(id string) (model.Notification, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	n, ok := s.doc.Notifications[id]
+	return n, ok
+}
+
+func (s *JSONStore) NotificationsForRecipient(login string) []model.Notification {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []model.Notification
+	for _, n := range s.doc.Notifications {
+		if strings.EqualFold(n.Recipient, login) {
+			out = append(out, n)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt > out[j].CreatedAt })
+	return out
+}
+
+func (s *JSONStore) PendingNotifications(short, kind string) []model.Notification {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []model.Notification
+	for _, n := range s.doc.Notifications {
+		if n.PackageShort == short && n.Kind == kind && n.Status == model.NotifyPending {
+			out = append(out, n)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt > out[j].CreatedAt })
+	return out
+}
+
+func (s *JSONStore) SetNotificationStatus(id, status string) (model.Notification, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n, ok := s.doc.Notifications[id]
+	if !ok {
+		return model.Notification{}, false
+	}
+	n.Status = status
+	n.ResolvedAt = nowRFC3339()
+	s.doc.Notifications[id] = n
+	return n, s.persistLocked() == nil
 }
 
 func (s *JSONStore) DeleteComment(id string) error {

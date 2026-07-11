@@ -169,6 +169,31 @@ type Report struct {
 	ResolvedAt    string `json:"resolvedAt,omitempty"`
 }
 
+// Notification is an actionable item in a user's inbox, addressed by GitHub
+// login: an invite to publish a package, or an offer to receive ownership of
+// one. It stays "pending" until the recipient accepts or declines.
+type Notification struct {
+	ID           string `json:"id"`
+	Recipient    string `json:"recipient"` // GitHub login (lowercased) this is addressed to
+	Kind         string `json:"kind"`      // "publish-invite" | "transfer"
+	PackageShort string `json:"packageShort"`
+	PackageName  string `json:"packageName"` // display (module path)
+	FromLogin    string `json:"fromLogin"`   // who initiated it
+	Status       string `json:"status"`      // "pending" | "accepted" | "declined"
+	CreatedAt    string `json:"createdAt"`
+	ResolvedAt   string `json:"resolvedAt,omitempty"`
+}
+
+// Notification kinds and statuses.
+const (
+	NotifyPublishInvite = "publish-invite"
+	NotifyTransfer      = "transfer"
+
+	NotifyPending  = "pending"
+	NotifyAccepted = "accepted"
+	NotifyDeclined = "declined"
+)
+
 // APIToken is a personal access token used by the CLI / CI to authenticate API
 // requests. Only the SHA-256 hash of the token is stored; the plaintext is shown
 // once at creation.

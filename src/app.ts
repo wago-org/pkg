@@ -12,6 +12,7 @@ import {
     footer,
     homeScreen,
     nav,
+    notificationsScreen,
     packageScreen,
     publisherDropdownHtml,
     searchRows,
@@ -41,6 +42,8 @@ function screenBody(): string {
             return authScreen(state);
         case "account":
             return state.user ? accountScreen(state) : authScreen(state);
+        case "notifications":
+            return state.user ? notificationsScreen(state) : authScreen(state);
         case "user":
             return userScreen(state);
         default:
@@ -192,6 +195,15 @@ async function route(): Promise<void> {
         showAccount(tab, false);
         return;
     }
+    if (parts[0] === "notifications") {
+        if (!state.user) {
+            state.screen = "auth";
+            render();
+            return;
+        }
+        showNotifications(false);
+        return;
+    }
     // Two segments = a package: /{owner}/{short} (or legacy /p/{short}); a third
     // segment opens that package's subpackage page: /{owner}/{short}/{id}.
     if (parts.length >= 2) {
@@ -318,6 +330,57 @@ async function doResolveReport(id: string): Promise<void> {
 
 function navAccount(tab: AcctTab): void {
     showAccount(tab, true);
+}
+
+// ── notifications ────────────────────────────────────────────────────────────
+
+function navNotifications(): void {
+    showNotifications(true);
+}
+
+function showNotifications(push: boolean): void {
+    if (!state.user) {
+        navAuth();
+        return;
+    }
+    state.screen = "notifications";
+    state.menuOpen = false;
+    if (push) pushUrl("/notifications");
+    render();
+    scrollTop();
+    void loadNotifications();
+}
+
+// loadNotifications fetches the signed-in user's inbox (drives the nav badge and
+// the notifications screen), then re-renders.
+async function loadNotifications(): Promise<void> {
+    if (!state.user) return;
+    try {
+        state.notifications = await api.listNotifications();
+    } catch {
+        state.notifications = [];
+    }
+    render();
+}
+
+async function acceptNotification(id: string): Promise<void> {
+    try {
+        await api.acceptNotification(id);
+    } catch {
+        alert("Couldn't accept — it may have been withdrawn or already handled.");
+    }
+    await loadNotifications();
+    // If we're looking at the affected package, refresh it so new rights show.
+    if (state.screen === "package" && state.pkg) void openPackage(state.pkg.short, false);
+}
+
+async function declineNotification(id: string): Promise<void> {
+    try {
+        await api.declineNotification(id);
+    } catch {
+        alert("Couldn't decline that invite.");
+    }
+    await loadNotifications();
 }
 
 // Load the current user's starred packages (used by the profile stat and the
@@ -1096,32 +1159,55 @@ function patchPublisherDropdown(): void {
     if (el) el.innerHTML = publisherDropdownHtml(state);
 }
 
+// sendPublishInvite creates a pending publish invite for a login. They must
+// accept it (in their notifications) before they can publish; until then it
+// shows as a pending chip.
+async function sendPublishInvite(login: string): Promise<void> {
+    const p = state.pkg;
+    if (!p || !login) return;
+    try {
+        const updated = await api.invitePublisher(p.short, login);
+        if (state.pkg?.short === p.short) {
+            state.pkg.allowedPublishers = updated.allowedPublishers || [];
+            state.pkg.pendingPublishers = updated.pendingPublishers || [];
+        }
+    } catch {
+        alert(`Couldn't invite @${login} — they may already publish this package or have a pending invite.`);
+    }
+    render();
+}
+
 async function addPublisher(): Promise<void> {
     const p = state.pkg;
     const login = state.publisherDraft.trim().replace(/^@/, "");
     if (!p || !login) return await clearPublisherSearch(true);
-    const list = p.allowedPublishers || [];
     state.publisherDraft = "";
     state.publisherResults = [];
-    if (!list.some((x) => x.toLowerCase() === login.toLowerCase())) {
-        await savePublishers([...list, login]);
-    } else {
-        render();
-    }
+    await sendPublishInvite(login);
 }
 
-// pickPublisher adds a login chosen from the autocomplete dropdown.
+// pickPublisher invites a login chosen from the autocomplete dropdown.
 async function pickPublisher(login: string): Promise<void> {
     const p = state.pkg;
     if (!p) return;
     state.publisherDraft = "";
     state.publisherResults = [];
-    const list = p.allowedPublishers || [];
-    if (!list.some((x) => x.toLowerCase() === login.toLowerCase())) {
-        await savePublishers([...list, login]);
-    } else {
-        render();
+    await sendPublishInvite(login);
+}
+
+// cancelPublisherInvite withdraws a pending publish invite (declines it as the
+// package manager who sent it).
+async function cancelPublisherInvite(id: string): Promise<void> {
+    if (!state.pkg) return;
+    try {
+        await api.declineNotification(id);
+        if (state.pkg) {
+            state.pkg.pendingPublishers = (state.pkg.pendingPublishers || []).filter((x) => x.id !== id);
+        }
+    } catch {
+        alert("Couldn't cancel that invite.");
     }
+    render();
 }
 
 // clearPublisherSearch drops any open autocomplete (and optionally re-renders).
@@ -1154,23 +1240,26 @@ async function setDeprecated(message: string, undo: boolean): Promise<void> {
     render();
 }
 
-// transferPackage reassigns the package's owner login to the destination in the
-// transfer field (a GitHub org the caller owns, or another account), then
-// refreshes. On success the package may drop off the caller's control (if they
-// don't own the destination), so we honor the backend's canManage in the reply.
+// transferPackage moves ownership to the destination in the transfer field.
+// Transferring to your own login or the org that owns the source repo applies
+// immediately; any other account gets a pending invite it must accept. We honor
+// the backend's canManage in the reply (you may lose control after an org move).
 async function transferPackage(): Promise<void> {
     const p = state.pkg;
     if (!p) return;
     const owner = state.transferDraft.trim().replace(/^@/, "");
     if (!owner || owner.toLowerCase() === (p.ownerLogin || "").toLowerCase()) return;
-    if (!confirm(`Transfer "${p.short}" to @${owner}? You keep management access only if you're an owner/admin of ${owner}.`)) return;
+    if (!confirm(`Transfer "${p.short}" to @${owner}? If it's not the repo's org, they'll get an invite to accept.`)) return;
     try {
-        const updated = await api.transferPackage(p.short, owner);
-        if (state.pkg?.short === p.short) {
+        const { pkg: updated, invited } = await api.transferPackage(p.short, owner);
+        state.transferDraft = "";
+        if (invited) {
+            alert(`Invite sent — @${invited} will become the owner once they accept it in their notifications.`);
+        } else if (state.pkg?.short === p.short) {
             state.pkg.ownerLogin = updated.ownerLogin;
             state.pkg.canManage = updated.canManage;
             state.pkg.allowedPublishers = updated.allowedPublishers || [];
-            state.transferDraft = "";
+            state.pkg.pendingPublishers = updated.pendingPublishers || [];
         }
     } catch {
         alert("Couldn't transfer — check the destination login and that you're an owner/admin of it.");
@@ -1317,8 +1406,20 @@ function dispatch(act: string, arg: string | null, el: HTMLElement): void {
         case "publisher-remove":
             if (arg) void removePublisher(arg);
             break;
+        case "publisher-cancel":
+            if (arg) void cancelPublisherInvite(arg);
+            break;
         case "publisher-pick":
             if (arg) void pickPublisher(arg);
+            break;
+        case "notifications":
+            navNotifications();
+            break;
+        case "notif-accept":
+            if (arg) void acceptNotification(arg);
+            break;
+        case "notif-decline":
+            if (arg) void declineNotification(arg);
             break;
         case "deprecate":
             void setDeprecated(state.deprecateDraft.trim(), false);
@@ -1622,5 +1723,6 @@ export async function init(): Promise<void> {
     state.user = await api.getMe();
     enrichCatalogStars(); // real GitHub stargazers for the home/search cards
     await completePendingStar();
+    if (state.user) void loadNotifications(); // populate the inbox badge
     await route();
 }

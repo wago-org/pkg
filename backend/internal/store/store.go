@@ -62,6 +62,17 @@ type Store interface {
 	ListReports() []model.Report
 	ResolveReport(id, byLogin string) (model.Report, bool)
 
+	// Notifications (actionable inbox: publish invites, ownership transfers).
+	// AddNotification assigns the id/timestamp and stores it as pending.
+	AddNotification(n model.Notification) (model.Notification, error)
+	GetNotification(id string) (model.Notification, bool)
+	// NotificationsForRecipient returns a login's notifications, newest first.
+	NotificationsForRecipient(login string) []model.Notification
+	// PendingNotifications returns the still-pending notifications of a kind for a
+	// package (e.g. outstanding publish invites), newest first.
+	PendingNotifications(short, kind string) []model.Notification
+	SetNotificationStatus(id, status string) (model.Notification, bool)
+
 	// Installs (keyed by package short id; dates are YYYY-MM-DD).
 	RecordInstall(short, date string) error
 	InstallSeries(short string, sinceDays int) []InstallPoint

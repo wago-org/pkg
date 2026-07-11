@@ -2,9 +2,9 @@
 // event layer mutates it and asks for a re-render. Ephemeral UI bits (open
 // menus, draft text, active tab) live here alongside loaded data.
 
-import type { Comment, Issue, InstallPoint, Package, Registry, Report, Review, User, ViewUser } from "./types.js";
+import type { Comment, Issue, InstallPoint, Notification, Package, Registry, Report, Review, User, ViewUser } from "./types.js";
 
-export type Screen = "home" | "search" | "package" | "auth" | "account" | "user";
+export type Screen = "home" | "search" | "package" | "auth" | "account" | "user" | "notifications";
 export type PkgTab = "readme" | "reviews" | "comments" | "dependencies" | "dependents" | "versions" | "subpackages" | "settings";
 export type Sort = "popular" | "recent";
 export type AcctTab = "profile" | "plugins" | "stars" | "saved" | "reports" | "settings";
@@ -90,6 +90,7 @@ export interface AppState {
     starShorts: string[] | null; // packages the user has starred (null = unloaded)
     savedShorts: string[]; // bookmarked (saved) package shorts, from localStorage
     reports: Report[] | null; // moderation queue (admins), null = unloaded
+    notifications: Notification[] | null; // the signed-in user's inbox, null = unloaded
     menuOpen: boolean;
     settings: { releases: boolean; security: boolean; digest: boolean };
     bioDraft: string | null;
@@ -168,6 +169,7 @@ export const state: AppState = {
     starShorts: null,
     savedShorts: [],
     reports: null,
+    notifications: null,
     menuOpen: false,
     settings: { releases: true, security: true, digest: false },
     bioDraft: null,

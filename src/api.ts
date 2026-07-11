@@ -10,6 +10,7 @@ import { API_BASE, PACKAGES_URL } from "./config.js";
 import type {
     Comment,
     InstallPoint,
+    Notification,
     Package,
     Registry,
     Report,
@@ -120,6 +121,7 @@ export function normalizePackage(raw: RawPackage): Package {
         ownerLogin: raw.ownerLogin,
         canManage: raw.canManage,
         allowedPublishers: raw.allowedPublishers,
+        pendingPublishers: raw.pendingPublishers,
         dependencies: raw.dependencies,
         deprecatedMessage: raw.deprecatedMessage,
         compatibility: raw.compatibility || { engines: {}, platforms: [] },
@@ -386,18 +388,53 @@ export async function resolveReport(id: string): Promise<void> {
     await apiSend(`/api/reports/${id}/resolve`, "POST");
 }
 
-// setPublishers replaces a package's allowed-publishers list (owner / admin).
-// Returns the updated package.
+// setPublishers replaces a package's allowed-publishers list (owner / admin) —
+// used to remove an already-accepted publisher. Returns the updated package.
 export async function setPublishers(short: string, publishers: string[]): Promise<Package> {
     const raw = await apiSend<RawPackage>(`/api/packages/${short}/publishers`, "PUT", { publishers });
     return normalizePackage(raw);
 }
 
-// transferPackage reassigns the package's owner login to a GitHub org the caller
-// owns (or back to their own login). Returns the updated package.
-export async function transferPackage(short: string, owner: string): Promise<Package> {
-    const raw = await apiSend<RawPackage>(`/api/packages/${short}/transfer`, "POST", { owner });
+// invitePublisher sends a pending publish invite to a GitHub login; they must
+// accept it (in their notifications) before they can publish. Owner / admin only.
+export async function invitePublisher(short: string, login: string): Promise<Package> {
+    const raw = await apiSend<RawPackage>(`/api/packages/${short}/publishers/invite`, "POST", { login });
     return normalizePackage(raw);
+}
+
+// ── notifications ────────────────────────────────────────────────────────────
+
+// listNotifications returns the signed-in user's inbox, newest first.
+export async function listNotifications(): Promise<Notification[]> {
+    const r = await apiGet<{ notifications: Notification[] }>("/api/me/notifications");
+    return r.notifications || [];
+}
+
+// acceptNotification accepts a pending invite (recipient only), applying its
+// effect (publish rights, or ownership).
+export async function acceptNotification(id: string): Promise<Notification> {
+    return apiSend<Notification>(`/api/notifications/${id}/accept`, "POST");
+}
+
+// declineNotification declines/cancels a pending invite (recipient, or a manager
+// of the package cancelling one they sent).
+export async function declineNotification(id: string): Promise<Notification> {
+    return apiSend<Notification>(`/api/notifications/${id}/decline`, "POST");
+}
+
+// transferPackage either reassigns ownership immediately (to your own login, or
+// the org that owns the source repo) or sends a pending transfer invite (any
+// other account). `invited` is the destination login when an invite was sent.
+export async function transferPackage(
+    short: string,
+    owner: string,
+): Promise<{ pkg: Package; invited?: string }> {
+    const raw = await apiSend<RawPackage & { transferInvited?: string }>(
+        `/api/packages/${short}/transfer`,
+        "POST",
+        { owner },
+    );
+    return { pkg: normalizePackage(raw), invited: raw.transferInvited };
 }
 
 // deprecatePackage marks a package deprecated (with an optional message) or undoes

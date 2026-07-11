@@ -199,6 +199,12 @@ func (a *App) NewRouter() http.Handler {
 	mux.HandleFunc("POST /api/packages/{name}/deprecate", a.handleDeprecate)
 	mux.HandleFunc("POST /api/packages/{name}/transfer", a.handleTransfer)
 	mux.HandleFunc("PUT /api/packages/{name}/publishers", a.handleSetPublishers)
+	mux.HandleFunc("POST /api/packages/{name}/publishers/invite", a.handleInvitePublisher)
+
+	// Notifications (actionable inbox: publish invites, ownership transfers).
+	mux.HandleFunc("GET /api/me/notifications", a.handleMyNotifications)
+	mux.HandleFunc("POST /api/notifications/{id}/accept", a.handleAcceptNotification)
+	mux.HandleFunc("POST /api/notifications/{id}/decline", a.handleDeclineNotification)
 
 	return httpx.CORS(a.Cfg.FrontendURL, mux)
 }

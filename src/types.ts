@@ -119,6 +119,7 @@ export interface Package {
     ownerLogin?: string;
     canManage?: boolean; // backend-computed: may the current viewer manage this package (org-aware)
     allowedPublishers?: string[]; // extra logins the owner lets publish (beyond repo admins)
+    pendingPublishers?: { login: string; id: string }[]; // outstanding publish invites (manager view)
     dependencies?: string[]; // module paths this package depends on
     readme?: string; // module-level readme (markdown); fallback for subpackages
     deprecatedMessage?: string;
@@ -150,6 +151,20 @@ export interface Package {
     installsTotal?: number;
 
     issues?: Issue[];
+}
+
+// Notification is an actionable inbox item addressed to a user's GitHub login:
+// an invite to publish a package, or an offer to receive ownership of one.
+export interface Notification {
+    id: string;
+    recipient: string;
+    kind: "publish-invite" | "transfer";
+    packageShort: string;
+    packageName: string;
+    fromLogin: string;
+    status: "pending" | "accepted" | "declined";
+    createdAt: string;
+    resolvedAt?: string;
 }
 
 // A public profile of any user (author/contributor), shown at #/u/{login}.

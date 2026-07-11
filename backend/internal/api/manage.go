@@ -39,7 +39,17 @@ func (a *App) decorateForViewer(p model.Package, u *model.User) map[string]any {
 		id = u.ID
 	}
 	m := a.decoratePackage(p, id)
-	m["canManage"] = a.ownsPackage(u, p)
+	canManage := a.ownsPackage(u, p)
+	m["canManage"] = canManage
+	// Managers also see outstanding publish invites (not yet accepted) so the
+	// publishers editor can show them as pending chips.
+	if canManage {
+		pending := []map[string]string{}
+		for _, n := range a.Store.PendingNotifications(p.Short, model.NotifyPublishInvite) {
+			pending = append(pending, map[string]string{"login": n.Recipient, "id": n.ID})
+		}
+		m["pendingPublishers"] = pending
+	}
 	return m
 }
 
@@ -99,10 +109,11 @@ type transferRequest struct {
 	Owner string `json:"owner"`
 }
 
-// handleTransfer reassigns a package's owner login. The caller must currently
-// manage the package, and must also control the destination — their own login,
-// or a GitHub org they own/admin — so ownership can't be dumped onto an org they
-// don't administer.
+// handleTransfer reassigns a package's owner login, or sends a transfer invite.
+// The caller must currently manage the package. Transferring to their own login
+// or to the GitHub org that owns the source repo (verified via repo admin
+// access) applies immediately — they're already the authority. Transferring to
+// any other login creates a pending invite the recipient must accept.
 func (a *App) handleTransfer(w http.ResponseWriter, r *http.Request) {
 	p, ok := a.ownedPackage(w, r)
 	if !ok {
@@ -124,30 +135,47 @@ func (a *App) handleTransfer(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, http.StatusOK, a.decorateForViewer(p, u))
 		return
 	}
-	// The caller may transfer to their own login, or to the GitHub owner of the
-	// package's source repo — verified with admin access to that repo (org owners
-	// and repo admins qualify), which needs no read:org scope.
-	if !strings.EqualFold(target, u.Login) {
-		repoOwner, repo, ok := parseGitHubRepo(p.Repository)
-		if !ok {
-			httpx.WriteError(w, http.StatusBadRequest, "this package has no GitHub repository, so it can only be transferred to your own account")
+
+	// Immediate paths: your own login, or the org that owns the source repo when
+	// you have admin on it (org owners / repo admins), which needs no read:org.
+	immediate := strings.EqualFold(target, u.Login)
+	if !immediate {
+		if repoOwner, repo, ok := parseGitHubRepo(p.Repository); ok &&
+			strings.EqualFold(target, repoOwner) && a.repoAdmin(u, repoOwner, repo) {
+			immediate = true
+		}
+	}
+	if immediate {
+		p.OwnerLogin = target
+		if err := a.Store.UpsertPackage(p); err != nil {
+			httpx.WriteError(w, http.StatusInternalServerError, "store error")
 			return
 		}
-		if !strings.EqualFold(target, repoOwner) {
-			httpx.WriteError(w, http.StatusForbidden, "you can only transfer this package to @"+repoOwner+" (the owner of its GitHub repo) or to your own account")
-			return
-		}
-		if !a.repoAdmin(u, repoOwner, repo) {
-			httpx.WriteError(w, http.StatusForbidden, "you must have admin access to github.com/"+repoOwner+"/"+repo+" to transfer it to @"+target)
+		httpx.WriteJSON(w, http.StatusOK, a.decorateForViewer(p, u))
+		return
+	}
+
+	// Otherwise it's an offer to another account: create a pending transfer invite
+	// the recipient accepts to become owner. Don't stack duplicates.
+	for _, n := range a.Store.PendingNotifications(p.Short, model.NotifyTransfer) {
+		if strings.EqualFold(n.Recipient, target) {
+			httpx.WriteError(w, http.StatusConflict, "@"+target+" already has a pending transfer invite")
 			return
 		}
 	}
-	p.OwnerLogin = target
-	if err := a.Store.UpsertPackage(p); err != nil {
+	if _, err := a.Store.AddNotification(model.Notification{
+		Recipient:    target,
+		Kind:         model.NotifyTransfer,
+		PackageShort: p.Short,
+		PackageName:  p.Name,
+		FromLogin:    u.Login,
+	}); err != nil {
 		httpx.WriteError(w, http.StatusInternalServerError, "store error")
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, a.decorateForViewer(p, u))
+	m := a.decorateForViewer(p, u)
+	m["transferInvited"] = target
+	httpx.WriteJSON(w, http.StatusOK, m)
 }
 
 // handleUnpublishVersion removes a single version. If it was the last version,
