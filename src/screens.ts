@@ -537,9 +537,17 @@ export function packageScreen(s: AppState): string {
         ? `<a href="${escAttr(p.repository)}" target="_blank" rel="noopener" title="Open the repository on GitHub" style="display:inline-flex;align-items:center;gap:8px;text-decoration:none;font-family:'Outfit',sans-serif;font-weight:700;font-size:13.5px;color:${C.text};background:transparent;border:1px solid ${C.line2};padding:8px 14px;border-radius:9px;cursor:pointer;transition:all .15s"><span style="font-size:14px;color:${C.muted}">⎇</span> Repo ↗</a>`
         : "";
 
+    // Breadcrumb: packages / [category] / short. The category crumb only appears
+    // when the package actually has one — otherwise it collapses to
+    // "packages / short" instead of leaving an empty "packages / / short" gap.
+    const sep = ` <span style="color:${C.line2}">/</span> `;
+    const catCrumb = p.category
+        ? `${sep}<a href="/search" data-act="cat" data-arg="${escAttr(p.category)}" style="text-decoration:none;color:${C.muted}">${esc(p.category)}</a>`
+        : "";
+
     return `
 <div style="padding:28px 0 72px">
-  <div style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:${C.muted};margin-bottom:16px"><a href="/" data-act="home" style="text-decoration:none;color:${C.muted}">packages</a> <span style="color:${C.line2}">/</span> <a href="/search" data-act="cat" data-arg="${escAttr(p.category)}" style="text-decoration:none;color:${C.muted}">${esc(p.category)}</a> <span style="color:${C.line2}">/</span> <span style="color:${C.lilac}">${esc(p.short)}</span></div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:${C.muted};margin-bottom:16px"><a href="/" data-act="home" style="text-decoration:none;color:${C.muted}">packages</a>${catCrumb}${sep}<span style="color:${C.lilac}">${esc(p.short)}</span></div>
 
   <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">
     <h1 style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:clamp(24px,3.4vw,34px);letter-spacing:-1px;margin:0;word-break:break-all">${esc(p.name)}</h1>

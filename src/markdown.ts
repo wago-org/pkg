@@ -42,12 +42,15 @@ const ALLOWED_TAGS = [
 ];
 const ALLOWED_ATTR = ["href", "title", "align", "start"];
 
-// README bodies come from the package's own repo, so — like GitHub — we render
-// images, task-list checkboxes, <details>, and <kbd>. Comment/review bodies stay
-// on the strict list above.
-const RICH_TAGS = [...ALLOWED_TAGS, "img", "input", "details", "summary", "kbd", "picture", "source"];
-// `class` is allowed so the highlighter's `token` spans survive sanitizing.
-const RICH_ATTR = [...ALLOWED_ATTR, "src", "alt", "width", "height", "loading", "type", "checked", "disabled", "open", "srcset", "media", "class"];
+// README bodies come from the package's own repo, so — like GitHub, but a touch
+// more permissive — we render images, task-list checkboxes, <details>, <kbd>, and
+// the layout/centering markup READMEs lean on (<div>/<center> + `align`/`style`).
+// Comment/review bodies stay on the strict list above.
+const RICH_TAGS = [...ALLOWED_TAGS, "img", "input", "details", "summary", "kbd", "picture", "source", "div", "center"];
+// `class` survives so the highlighter's `token` spans keep their colours; `style`
+// enables author-driven layout (centering, columns, colour). DOMPurify still runs
+// every `style` value through its CSS filter, so no scripts/expressions get in.
+const RICH_ATTR = [...ALLOWED_ATTR, "src", "alt", "width", "height", "loading", "type", "checked", "disabled", "open", "srcset", "media", "class", "style"];
 
 // highlightBlocks applies syntax highlighting to fenced code blocks in-place, the
 // way GitHub does: only blocks with an explicit, recognised language. The result
