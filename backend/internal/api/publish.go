@@ -148,8 +148,10 @@ func (a *App) handlePublish(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "invalid json")
 		return
 	}
-	if req.Manifest.Schema != "wago-plugin/v1" {
-		httpx.WriteError(w, http.StatusBadRequest, "manifest.schema must be wago-plugin/v1")
+	// wago/v1 is the canonical manifest schema the CLI now emits; wago-plugin/v1
+	// remains accepted for manifests published before the rename.
+	if req.Manifest.Schema != "wago/v1" && req.Manifest.Schema != "wago-plugin/v1" {
+		httpx.WriteError(w, http.StatusBadRequest, `manifest.schema must be "wago/v1"`)
 		return
 	}
 	if strings.TrimSpace(req.Manifest.Module) == "" {

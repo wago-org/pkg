@@ -190,7 +190,7 @@ Behavior:
 - The caller's login is added to `contributors` (deduped).
 - The version is appended, marked `latest` (unsetting the previous latest), and
   `updatedAt` is bumped. A **duplicate** version string is **409**.
-- **400** if `manifest.schema != "wago-plugin/v1"`, or `module` / `version` is empty.
+- **400** if `manifest.schema` is neither `"wago/v1"` (canonical) nor `"wago-plugin/v1"` (legacy), or `module` / `version` is empty.
 
 ## Session cookie
 
