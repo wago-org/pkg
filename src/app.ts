@@ -9,6 +9,7 @@ import { initMarkdown } from "./markdown.js";
 import {
     accountScreen,
     authScreen,
+    canManagePackage,
     footer,
     homeScreen,
     loginChooserModal,
@@ -547,6 +548,17 @@ async function openPackage(short: string, push = true): Promise<void> {
         }
     });
     void refreshComments();
+}
+
+// Open a plugin's management surface: the package page, on its Settings tab
+// (publishers, deprecation, transfer, danger zone). Used by the "Manage" button
+// on the account's plugins list. Falls back to the Readme tab if the loaded
+// detail says the viewer can't actually manage it.
+async function openManage(short: string): Promise<void> {
+    await openPackage(short);
+    if (state.pkg?.short === short && canManagePackage(state)) {
+        setPkgTab("settings");
+    }
 }
 
 function scrollTop(): void {
@@ -1521,6 +1533,9 @@ function dispatch(act: string, arg: string | null, el: HTMLElement): void {
             break;
         case "open":
             if (arg) void openPackage(arg);
+            break;
+        case "manage":
+            if (arg) void openManage(arg);
             break;
         case "user":
             if (arg) void openProfile(arg);

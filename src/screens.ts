@@ -1423,7 +1423,7 @@ function publishersSection(p: Package): string {
 // Prefers the backend's org-aware canManage flag (true for org owners/admins of an
 // org-owned package); falls back to owner-login / site-admin when it's absent (e.g.
 // the static, no-backend build).
-function canManagePackage(s: AppState): boolean {
+export function canManagePackage(s: AppState): boolean {
     if (s.pkg?.canManage) return true;
     const me = s.user?.login?.toLowerCase();
     if (!me) return false;
@@ -1872,7 +1872,7 @@ function acctPlugins(s: AppState): string {
                 <div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.muted}">↓ ${esc(p.installsWeekLabel)}/wk · ★ ${p.stars.toLocaleString()} · updated ${esc(relative(p.updatedAt))}</div>
               </div>
               <div style="display:flex;gap:8px">
-                <a href="${escAttr(p.repository)}" target="_blank" rel="noopener" style="text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${C.text};background:transparent;border:1px solid ${C.line2};padding:8px 13px;border-radius:8px">Manage</a>
+                <a href="${pkgPath(p)}" data-act="manage" data-arg="${escAttr(p.short)}" style="text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${C.text};background:transparent;border:1px solid ${C.line2};padding:8px 13px;border-radius:8px">Manage</a>
               </div>
             </div>`;
             })
