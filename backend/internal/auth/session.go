@@ -63,9 +63,7 @@ type payload struct {
 // SessionState is the signed body of the session cookie. It holds every account
 // signed in on this browser (Accounts, real GitHub-user ids), which one is
 // currently active (Active), and an optional organization login the active user
-// is acting on behalf of (Org). Exp is the shared unix expiry. The legacy
-// single-user cookie ({uid,exp}) is still accepted on read and upgraded on the
-// next write.
+// is acting on behalf of (Org). Exp is the shared unix expiry.
 type SessionState struct {
 	Accounts []string `json:"accounts"`
 	Active   string   `json:"active"`
@@ -133,13 +131,6 @@ func verify(token string, secret []byte) ([]byte, error) {
 	return body, nil
 }
 
-// NewSessionCookie builds the signed session cookie for a single user id (a
-// fresh, single-account session). Prefer WriteSessionCookie to preserve other
-// signed-in accounts.
-func (s *Sessions) NewSessionCookie(uid string) *http.Cookie {
-	return s.WriteSessionCookie(SessionState{Accounts: []string{uid}, Active: uid})
-}
-
 // WriteSessionCookie signs a full multi-account session state into a cookie. Exp
 // is (re)stamped to the standard TTL.
 func (s *Sessions) WriteSessionCookie(st SessionState) *http.Cookie {
@@ -163,8 +154,7 @@ func (s *Sessions) WriteSessionCookie(st SessionState) *http.Cookie {
 }
 
 // ReadSession parses and verifies the session cookie into a SessionState,
-// accepting the legacy single-user cookie and returning ok=false when there is
-// no valid, unexpired session.
+// returning ok=false when there is no valid, unexpired session.
 func (s *Sessions) ReadSession(r *http.Request) (SessionState, bool) {
 	c, err := r.Cookie(SessionCookieName)
 	if err != nil {
@@ -175,18 +165,10 @@ func (s *Sessions) ReadSession(r *http.Request) (SessionState, bool) {
 		return SessionState{}, false
 	}
 	var st SessionState
-	if err := json.Unmarshal(body, &st); err == nil && (len(st.Accounts) > 0 || st.Active != "") {
-		if time.Now().Unix() > st.Exp {
-			return SessionState{}, false
-		}
-		return st.normalize(), true
-	}
-	// Legacy {uid,exp} cookie: upgrade in memory to a one-account session.
-	var p payload
-	if err := json.Unmarshal(body, &p); err != nil || p.UID == "" || time.Now().Unix() > p.Exp {
+	if err := json.Unmarshal(body, &st); err != nil || st.Active == "" || time.Now().Unix() > st.Exp {
 		return SessionState{}, false
 	}
-	return SessionState{Accounts: []string{p.UID}, Active: p.UID, Exp: p.Exp}, true
+	return st.normalize(), true
 }
 
 // ClearSessionCookie returns a cookie that expires the session immediately.

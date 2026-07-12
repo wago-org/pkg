@@ -44,19 +44,6 @@ func TestSessionNormalize(t *testing.T) {
 	}
 }
 
-func TestReadSessionLegacy(t *testing.T) {
-	s := testSessions()
-	// A legacy {uid,exp} cookie must still authenticate, upgraded to one account.
-	body, _ := json.Marshal(payload{UID: "42", Exp: time.Now().Add(time.Hour).Unix()})
-	req := httptest.NewRequest("GET", "/", nil)
-	req.AddCookie(&http.Cookie{Name: SessionCookieName, Value: sign(body, s.secret)})
-
-	st, ok := s.ReadSession(req)
-	if !ok || st.Active != "42" || len(st.Accounts) != 1 {
-		t.Fatalf("legacy cookie not upgraded: ok=%v st=%+v", ok, st)
-	}
-}
-
 func TestReadSessionExpired(t *testing.T) {
 	s := testSessions()
 	body, _ := json.Marshal(SessionState{Accounts: []string{"1"}, Active: "1", Exp: time.Now().Add(-time.Minute).Unix()})
