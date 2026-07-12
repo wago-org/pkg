@@ -1142,7 +1142,7 @@ function pkgSidebar(s: AppState): string {
         d: b.date,
     }));
     // The CLI is prefix-tolerant, so drop the github.com/ host for a cleaner command.
-    const installCmd = `wago pkg add ${p.name.replace(/^github\.com\//, "")}`;
+    const installCmd = `wago pkg install ${p.name.replace(/^github\.com\//, "")}`;
 
     // A metadata cell (label + value); rendered full-width or half-width.
     const metaCell = (label: string, value: string): string =>
