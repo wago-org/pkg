@@ -8,6 +8,9 @@ on:
     branches:
       - main
   workflow_dispatch:
+  # Refresh prerendered OG cards and sitemap from the live registry twice daily.
+  schedule:
+    - cron: "0 */12 * * *"
   # Reusable: the "Sync stats" workflow calls this after committing fresh stats.
   workflow_call:
 

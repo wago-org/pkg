@@ -30,6 +30,17 @@ const esc = (s) =>
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;");
 
+const canonicalID = (p) => {
+    const short = String(p.short || "").replace(/^github\.com\//, "");
+    if (short.includes("/")) return short;
+    if (p.ownerLogin && short) return `${p.ownerLogin}/${short}`;
+    return String(p.name || "").replace(/^github\.com\//, "");
+};
+
+const pathForID = (id) => id.split("/").map(encodeURIComponent).join("/");
+
+const sitemap = (entries) => `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries.map(({ url, lastmod }) => `  <url>\n    <loc>${esc(url)}</loc>${lastmod ? `\n    <lastmod>${esc(lastmod)}</lastmod>` : ""}\n  </url>`).join("\n")}\n</urlset>\n`;
+
 // seoBlock renders the marker-delimited <head> SEO block for one page.
 function seoBlock({ title, description, url, image, type = "website" }) {
     const t = esc(title);
@@ -39,7 +50,7 @@ function seoBlock({ title, description, url, image, type = "website" }) {
         `<title>${t}</title>`,
         `<meta name="description" content="${d}" />`,
         `<link rel="canonical" href="${esc(url)}" />`,
-        `<meta property="og:site_name" content="wago packages" />`,
+        `<meta property="og:site_name" content="Plugins" />`,
         `<meta property="og:type" content="${esc(type)}" />`,
         `<meta property="og:title" content="${t}" />`,
         `<meta property="og:description" content="${d}" />`,
@@ -97,6 +108,10 @@ async function main() {
 
     let pkgCount = 0;
     const authors = new Map(); // login(lower) -> display login
+    const sitemapEntries = [
+        { url: `${ORIGIN}/` },
+        { url: `${ORIGIN}/search` },
+    ];
 
     const noteAuthor = (login) => {
         if (!login) return;
@@ -106,17 +121,17 @@ async function main() {
     };
 
     for (const p of packages) {
-        const short = p.short;
-        const owner = p.ownerLogin || "packages";
-        if (!short) continue;
-        const url = `${ORIGIN}/${encodeURIComponent(owner)}/${encodeURIComponent(short)}`;
+        const id = canonicalID(p);
+        if (!id) continue;
+        const url = `${ORIGIN}/${pathForID(id)}`;
         const description =
-            p.description || `${p.name || short} — a package on the wago registry.`;
+            p.description || `${id} — a plugin in the wago registry.`;
         const html = template.replace(
             SEO_RE,
-            seoBlock({ title: `${owner}/${short} | Plugins`, description, url, image: LOGO }),
+            seoBlock({ title: `${id} | Plugins`, description, url, image: LOGO }),
         );
-        await emit(`${owner}/${short}`, html);
+        await emit(pathForID(id), html);
+        sitemapEntries.push({ url, lastmod: p.updatedAt || undefined });
         pkgCount++;
 
         noteAuthor(p.ownerLogin);
@@ -137,9 +152,13 @@ async function main() {
             }),
         );
         await emit(login, html);
+        sitemapEntries.push({ url });
     }
 
-    console.log(`prerender: wrote ${pkgCount} package pages + ${authors.size} author pages`);
+    await writeFile(join(DIST, "sitemap.xml"), sitemap(sitemapEntries), "utf8");
+    await writeFile(join(DIST, "robots.txt"), `User-agent: *\nAllow: /\n\nSitemap: ${ORIGIN}/sitemap.xml\n`, "utf8");
+
+    console.log(`prerender: wrote ${pkgCount} package pages + ${authors.size} author pages + sitemap.xml`);
 }
 
 main().catch((err) => {
