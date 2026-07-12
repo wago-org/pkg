@@ -111,16 +111,20 @@ export function normalizePackage(raw: RawPackage): Package {
     const installsMonth = raw.installsMonth ?? installsWeek;
     const tags = raw.tags || [];
     const keywords = raw.keywords || raw.tags || [];
+    // During the breaking backend rollout, normalize the live legacy shape
+    // ({ ownerLogin: "wago-org", short: "wasi" }) into the one canonical ID
+    // shown everywhere in the UI. New API payloads already provide `id`.
+    const id = raw.id || (raw.ownerLogin && raw.short ? `${raw.ownerLogin}/${raw.short}` : raw.short) || "";
     return {
-        id: raw.id || raw.short || "",
-        short: raw.id || raw.short || "",
-        module: raw.id ? `github.com/${raw.id}` : raw.name || "",
+        id,
+        short: id,
+        module: raw.id ? `github.com/${raw.id}` : raw.name || (id ? `github.com/${id}` : ""),
         description: raw.description || "",
         category: raw.category || "",
         tags,
         keywords,
         // Precomputed once so realtime search is a plain substring scan per keystroke.
-        search: `${raw.id || raw.short || ""} ${raw.description || ""} ${tags.join(" ")} ${keywords.join(" ")}`.toLowerCase(),
+        search: `${id} ${raw.description || ""} ${tags.join(" ")} ${keywords.join(" ")}`.toLowerCase(),
         license: raw.license || "",
         repository: raw.repository || "",
         homepage: raw.homepage,
