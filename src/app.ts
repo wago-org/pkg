@@ -71,8 +71,8 @@ function currentMeta(): { title: string; description: string; url: string; image
     if (state.screen === "package" && state.pkg) {
         const p = state.pkg;
         return {
-            title: `${p.ownerLogin}/${p.short} | ${SITE}`,
-            description: p.description || `${p.name} — a plugin on the wago registry.`,
+            title: `${p.short} | ${SITE}`,
+            description: p.description || `${p.short} — a plugin on the wago registry.`,
             url,
             image,
         };
@@ -275,10 +275,9 @@ async function route(): Promise<void> {
         showNotifications(false);
         return;
     }
-    // Two segments = a package: /{owner}/{short} (or legacy /p/{short}); a third
-    // segment opens that package's subpackage page: /{owner}/{short}/{id}.
+    // Two segments are the canonical GitHub-relative package ID: /owner/repository.
     if (parts.length >= 2) {
-        await openPackage(parts[1], false);
+        await openPackage(`${parts[0]}/${parts[1]}`, false);
         if (parts.length >= 3) openSub(decodeURIComponent(parts[2]), false);
         return;
     }
@@ -1148,7 +1147,7 @@ function setPkgTab(tab: PkgTab): void {
     }
 }
 
-// Open a subpackage's page (its readme) at /{owner}/{short}/{id}. `push` is
+// Open a subpackage's page (its readme) at /{owner}/{repository}/{id}. `push` is
 // false when arriving via the router (URL already correct).
 function openSub(id: string, push = true): void {
     if (!state.pkg) return;
