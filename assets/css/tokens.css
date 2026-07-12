@@ -202,6 +202,20 @@ button {
     height: 15px;
     display: block;
 }
+/* Install-command copy button (package page): same icon treatment as code blocks. */
+.install-copy svg {
+    width: 14px;
+    height: 14px;
+    display: block;
+}
+.install-copy:hover {
+    color: var(--text);
+    background: var(--panel-2);
+}
+.install-copy.copied {
+    color: var(--green);
+    border-color: var(--green);
+}
 .md pre code {
     background: none;
     border: none;

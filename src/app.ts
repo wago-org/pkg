@@ -3,7 +3,7 @@
 // everything that mutates state and asks for a re-render lives here.
 
 import * as api from "./api.js";
-import { copyFrom, copyText } from "./copy.js";
+import { CHECK_ICON, COPY_ICON, copyFrom, copyText } from "./copy.js";
 import * as github from "./github.js";
 import { initMarkdown } from "./markdown.js";
 import {
@@ -197,10 +197,7 @@ function fmtShortDate(iso: string): string {
 
 // enhanceCodeBlocks adds a GitHub-style copy button to the top-right of every
 // rendered code block. The button is injected by trusted JS (not baked into the
-// sanitized markdown), and reuses the [data-copy] click delegation + copyFrom.
-const COPY_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
-const CHECK_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
-
+// sanitized markdown). Icons are shared with the install-command copy button.
 function enhanceCodeBlocks(): void {
     root()
         .querySelectorAll<HTMLElement>(".md pre")

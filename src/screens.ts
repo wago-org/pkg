@@ -17,6 +17,7 @@ import type {
 import { compactNum, esc, escAttr, fullDate, pkgPath, relativeDate, shortHash, sparkline, starStr, tier, weeklyBuckets } from "./util.js";
 import { mdBlock } from "./markdown.js";
 import { avatarFor } from "./github.js";
+import { COPY_ICON } from "./copy.js";
 
 const C = {
     bg: "#1a1547",
@@ -1140,7 +1141,8 @@ function pkgSidebar(s: AppState): string {
         c: b.count,
         d: b.date,
     }));
-    const installCmd = `wago pkg add ${p.name}`;
+    // The CLI is prefix-tolerant, so drop the github.com/ host for a cleaner command.
+    const installCmd = `wago pkg add ${p.name.replace(/^github\.com\//, "")}`;
 
     // A metadata cell (label + value); rendered full-width or half-width.
     const metaCell = (label: string, value: string): string =>
@@ -1219,7 +1221,7 @@ function pkgSidebar(s: AppState): string {
         <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;color:${C.muted};text-transform:uppercase;margin-bottom:9px">Install</div>
         <div style="background:${C.deep};border:1px solid ${C.line};border-radius:10px;display:flex;align-items:center;gap:8px;padding:10px 12px">
           <span style="flex:1;min-width:0;font-family:'JetBrains Mono',monospace;font-size:12px;color:#e7e0ff;overflow-x:auto;white-space:nowrap"><span style="color:#6f64a8">$</span> ${esc(installCmd)}</span>
-          <button data-copy="${escAttr(installCmd)}" data-act="copy-install" style="flex-shrink:0;font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.dim};background:transparent;border:1px solid ${C.line};padding:4px 10px;border-radius:6px;cursor:pointer"><span data-copy-label>copy</span></button>
+          <button data-copy="${escAttr(installCmd)}" data-act="copy-install" class="install-copy" title="Copy install command" aria-label="Copy install command" style="flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;color:${C.dim};background:transparent;border:1px solid ${C.line};border-radius:6px;cursor:pointer"><span data-copy-label style="display:inline-flex">${COPY_ICON}</span></button>
         </div>
       </div>
       <div style="padding:15px 0;border-top:1px solid ${C.line}">
