@@ -202,13 +202,24 @@ button {
     height: 15px;
     display: block;
 }
-/* Install command (package page): the whole box is click-to-copy; the copy
-   affordance is invisible until clicked, when a checkmark briefly flashes. */
+/* Install command (package page): the whole box is click-to-copy. A muted copy
+   icon sits at rest (like the readme code blocks), brightens on hover, and turns
+   green as it flashes a checkmark on copy. */
 .install-box:hover {
     border-color: var(--line-2);
 }
+.install-box:hover .install-copy {
+    color: var(--text);
+}
 .install-box.copied {
     border-color: var(--green);
+}
+.install-box.copied .install-copy {
+    color: var(--green);
+}
+.install-copy {
+    color: var(--muted);
+    transition: color 0.12s ease;
 }
 .install-copy svg {
     width: 14px;

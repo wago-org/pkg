@@ -17,6 +17,7 @@ import type {
 import { compactNum, esc, escAttr, fullDate, pkgPath, relativeDate, shortHash, sparkline, starStr, tier, weeklyBuckets } from "./util.js";
 import { mdBlock } from "./markdown.js";
 import { avatarFor } from "./github.js";
+import { COPY_ICON } from "./copy.js";
 
 const C = {
     bg: "#1a1547",
@@ -1220,7 +1221,7 @@ function pkgSidebar(s: AppState): string {
         <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;color:${C.muted};text-transform:uppercase;margin-bottom:9px">Install</div>
         <div data-copy="${escAttr(installCmd)}" data-act="copy-install" class="install-box" role="button" tabindex="0" title="Click to copy" style="background:${C.deep};border:1px solid ${C.line};border-radius:10px;display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer">
           <span style="flex:1;min-width:0;font-family:'JetBrains Mono',monospace;font-size:12px;color:#e7e0ff;overflow-x:auto;white-space:nowrap"><span style="color:#6f64a8">$</span> ${esc(installCmd)}</span>
-          <span data-copy-label class="install-copy" aria-hidden="true" style="flex-shrink:0;display:inline-flex;width:14px;height:14px;color:${C.green}"></span>
+          <span data-copy-label class="install-copy" aria-hidden="true" style="flex-shrink:0;display:inline-flex;width:14px;height:14px">${COPY_ICON}</span>
         </div>
       </div>
       <div style="padding:15px 0;border-top:1px solid ${C.line}">
