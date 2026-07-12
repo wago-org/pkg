@@ -2,7 +2,7 @@
 // data-act (+ optional data-arg) attributes that the event layer in app.ts
 // dispatches on. Visual styling is inline, kept faithful to the DC design.
 
-import type { AppState } from "./state.js";
+import type { AcctTab, AppState } from "./state.js";
 import type {
     Comment,
     Notification,
@@ -266,16 +266,109 @@ function previewPane(draft: string, minHeight: number): string {
     return `<div style="min-height:${minHeight}px;background:${C.panel};border:1px solid ${C.line};border-radius:10px;padding:12px 14px;box-sizing:border-box">${body}</div>`;
 }
 
-function profileMenu(s: AppState): string {
-    const u = s.user!;
-    const menuItems = [
+// A tiny initial from a display name, for switcher avatars without a picture.
+function initialFor(name: string): string {
+    return (name || "?").trim()[0]?.toUpperCase() || "?";
+}
+
+// A small "org" chip, marking an organization identity in the switcher and nav.
+function orgTag(size = 10): string {
+    return `<span style="font-family:'JetBrains Mono',monospace;font-size:${size}px;font-weight:700;color:${C.lilac};background:${C.deep};border:1px solid ${C.line2};padding:1px 6px;border-radius:100px">org</span>`;
+}
+
+// One selectable identity row in the account switcher: avatar + name + @login,
+// a check when it's the active identity, and (for a switch) the dispatch action.
+function switcherRow(opts: {
+    login: string;
+    name: string;
+    avatarUrl?: string;
+    active: boolean;
+    act: string;
+    arg?: string;
+    org?: boolean;
+    indent?: boolean;
+}): string {
+    const { login, name, avatarUrl, active, act, arg, org, indent } = opts;
+    const av = avatarSpan(name, initialFor(name), avatarBgFor(login), avatarUrl, 26, 11);
+    const mark = active
+        ? `<span style="color:${C.green};font-size:13px;flex-shrink:0">✓</span>`
+        : `<span style="color:${C.muted};font-size:11px;flex-shrink:0">Switch</span>`;
+    return `
+      <button data-act="${act}"${arg != null ? ` data-arg="${escAttr(arg)}"` : ""} style="display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:${active ? C.deep : "transparent"};border:none;border-radius:9px;padding:8px ${indent ? "10px 8px 20px" : "10px"};cursor:${active ? "default" : "pointer"}">
+        ${av}
+        <span style="min-width:0;flex:1">
+          <span style="display:flex;align-items:center;gap:6px"><span style="font-size:13px;font-weight:700;color:${C.text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(name)}</span>${org ? orgTag(9) : ""}</span>
+          <span style="display:block;font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.muted};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">@${esc(login)}</span>
+        </span>
+        ${mark}
+      </button>`;
+}
+
+// The account switcher shown inside the profile dropdown: every signed-in
+// account, the actable organizations of the active account, and a way to add
+// another account. Personal-vs-org is reflected by which row carries the check.
+function accountSwitcher(s: AppState): string {
+    const actableOrgs = s.orgs.filter((o) => o.canActAs);
+    const personalActive = !s.activeOrg;
+    const rows: string[] = [];
+    for (const acc of s.accounts) {
+        // A real account row is "active" only when it's the active account AND we
+        // aren't currently acting as one of its orgs.
+        rows.push(
+            switcherRow({
+                login: acc.login,
+                name: acc.name,
+                avatarUrl: acc.avatarUrl,
+                active: acc.active && personalActive,
+                act: acc.active ? (personalActive ? "noop" : "back-to-personal") : "switch-account",
+                arg: acc.active ? undefined : String(acc.id),
+            }),
+        );
+    }
+    const orgRows = actableOrgs
+        .map((o) =>
+            switcherRow({
+                login: o.login,
+                name: o.name,
+                avatarUrl: o.avatarUrl,
+                active: s.activeOrg.toLowerCase() === o.login.toLowerCase(),
+                act: "act-as-org",
+                arg: o.login,
+                org: true,
+                indent: true,
+            }),
+        )
+        .join("");
+    const orgSection = actableOrgs.length
+        ? `<div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.6px;color:${C.muted};text-transform:uppercase;padding:8px 10px 4px">Act as organization</div>${orgRows}`
+        : "";
+    return `
+      ${rows.join("")}
+      ${orgSection}
+      <button data-act="add-account" style="display:flex;align-items:center;gap:11px;width:100%;text-align:left;background:transparent;border:none;border-radius:9px;padding:9px 10px;cursor:pointer;color:${C.lilac}">
+        <span style="width:26px;text-align:center;font-size:16px">＋</span>
+        <span style="font-size:13px;font-weight:700">Add another account</span>
+      </button>`;
+}
+
+// Account-area navigation destinations, shared by the profile dropdown and the
+// account screen's sidebar so they never drift apart.
+function acctNavItems(u: User): { label: string; icon: string; tab: AcctTab }[] {
+    return [
         { label: "Your profile", icon: "◉", tab: "profile" },
         { label: "Your plugins", icon: "▤", tab: "plugins" },
         { label: "Your stars", icon: "★", tab: "stars" },
         { label: "Saved", icon: bookmarkIcon(14, "currentColor", true), tab: "saved" },
-        ...(u.admin ? [{ label: "Reports", icon: "⚑", tab: "reports" }] : []),
+        { label: "Organizations", icon: "◈", tab: "organizations" },
+        ...(u.admin ? [{ label: "Reports", icon: "⚑", tab: "reports" as AcctTab }] : []),
         { label: "Settings", icon: "⚙", tab: "settings" },
-    ]
+    ];
+}
+
+function profileMenu(s: AppState): string {
+    const u = s.user!;
+    const acting = !!s.activeOrg && !!u.isOrg;
+    const menuItems = acctNavItems(u)
         .map(
             (m) => `
         <a href="#/account" data-act="acct" data-arg="${m.tab}" style="display:flex;align-items:center;gap:11px;text-decoration:none;padding:9px 10px;border-radius:8px;font-size:13.5px;font-weight:600;color:#d8cef5">
@@ -283,31 +376,83 @@ function profileMenu(s: AppState): string {
         </a>`,
         )
         .join("");
+    const signOutAll =
+        s.accounts.length > 1
+            ? `<a href="/" data-act="signout-all" style="display:flex;align-items:center;gap:11px;text-decoration:none;padding:9px 10px;border-radius:8px;font-size:13px;font-weight:600;color:${C.muted}">
+        <span style="width:18px;text-align:center">⇥</span> Sign out of all accounts
+      </a>`
+            : "";
     const dropdown = s.menuOpen
         ? `
-    <div style="position:absolute;top:48px;right:0;width:236px;background:${C.panel};border:1px solid ${C.line};border-radius:14px;padding:8px;box-shadow:0 22px 44px -18px rgba(0,0,0,.7);z-index:80">
+    <div style="position:absolute;top:48px;right:0;width:264px;max-height:78vh;overflow-y:auto;background:${C.panel};border:1px solid ${C.line};border-radius:14px;padding:8px;box-shadow:0 22px 44px -18px rgba(0,0,0,.7);z-index:80">
       <div style="display:flex;align-items:center;gap:10px;padding:8px 10px 12px;border-bottom:1px solid ${C.line};margin-bottom:6px">
         ${avatarSpan(u.name, u.initial, u.bg, u.avatarUrl, 38, 15)}
         <div style="min-width:0">
-          <div style="font-size:14px;font-weight:700;color:${C.text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(u.name)}</div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.muted}">@${esc(u.login)}</div>
+          <div style="display:flex;align-items:center;gap:6px"><span style="font-size:14px;font-weight:700;color:${C.text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(u.name)}</span>${acting ? orgTag(9) : ""}</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.muted}">${acting ? "acting as " : ""}@${esc(u.login)}</div>
         </div>
       </div>
+      ${accountSwitcher(s)}
+      <div style="height:1px;background:${C.line};margin:6px 4px"></div>
       ${menuItems}
       <div style="height:1px;background:${C.line};margin:6px 4px"></div>
       <a href="/" data-act="signout" style="display:flex;align-items:center;gap:11px;text-decoration:none;padding:9px 10px;border-radius:8px;font-size:13.5px;font-weight:600;color:${C.pink}">
-        <span style="width:18px;text-align:center">⇥</span> Sign out
+        <span style="width:18px;text-align:center">⇥</span> Sign out${acting ? ` of @${esc(u.login)}` : ""}
       </a>
+      ${signOutAll}
     </div>`
         : "";
     return `
     <div data-profile-menu style="position:relative">
-      <button data-act="menu-toggle" style="display:flex;align-items:center;gap:8px;background:transparent;border:1px solid ${C.line};border-radius:100px;padding:4px 11px 4px 4px;cursor:pointer">
+      <button data-act="menu-toggle" style="display:flex;align-items:center;gap:8px;background:transparent;border:1px solid ${acting ? C.lilac : C.line};border-radius:100px;padding:4px 11px 4px 4px;cursor:pointer">
         ${avatarSpan(u.name, u.initial, u.bg, u.avatarUrl, 28, 12)}
         <span style="font-size:13.5px;font-weight:600;color:${C.text}">${esc(u.login)}</span>
+        ${acting ? orgTag(9) : ""}
         <span style="color:${C.muted};font-size:10px">▾</span>
       </button>
       ${dropdown}
+    </div>`;
+}
+
+// The post-sign-in chooser: when a fresh login belongs to organizations it can
+// act as, ask whether to continue personally or step into an org right away.
+export function loginChooserModal(s: AppState): string {
+    const u = s.user;
+    if (!u) return "";
+    const actable = s.orgs.filter((o) => o.canActAs);
+    const personal = `
+      <button data-act="chooser-personal" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:${C.deep};border:1px solid ${C.line2};border-radius:12px;padding:13px 15px;cursor:pointer">
+        ${avatarSpan(u.name, u.initial, u.bg, u.avatarUrl, 40, 16)}
+        <span style="min-width:0;flex:1">
+          <span style="display:block;font-size:14.5px;font-weight:700;color:${C.text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(u.name)}</span>
+          <span style="display:block;font-family:'JetBrains Mono',monospace;font-size:12px;color:${C.muted}">@${esc(u.login)} · personal</span>
+        </span>
+        <span style="color:${C.lilac};font-size:16px;flex-shrink:0">→</span>
+      </button>`;
+    const orgs = actable
+        .map(
+            (o) => `
+      <button data-act="chooser-org" data-arg="${escAttr(o.login)}" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:${C.deep};border:1px solid ${C.line2};border-radius:12px;padding:13px 15px;cursor:pointer">
+        ${avatarSpan(o.name, initialFor(o.name), avatarBgFor(o.login), o.avatarUrl, 40, 16)}
+        <span style="min-width:0;flex:1">
+          <span style="display:flex;align-items:center;gap:6px"><span style="font-size:14.5px;font-weight:700;color:${C.text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(o.name)}</span>${orgTag(9)}</span>
+          <span style="display:block;font-family:'JetBrains Mono',monospace;font-size:12px;color:${C.muted}">@${esc(o.login)} · ${esc(o.role)}</span>
+        </span>
+        <span style="color:${C.lilac};font-size:16px;flex-shrink:0">→</span>
+      </button>`,
+        )
+        .join("");
+    return `
+    <div data-act="chooser-close" style="position:fixed;inset:0;z-index:130;background:rgba(11,8,32,0.72);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px">
+      <div data-act="noop" style="width:100%;max-width:440px;background:${C.panel};border:1px solid ${C.line2};border-radius:18px;padding:26px 24px 22px;box-shadow:0 30px 60px -20px rgba(0,0,0,.75)">
+        <h2 style="font-weight:800;font-size:20px;letter-spacing:-0.4px;margin:0 0 4px">Continue as…</h2>
+        <p style="font-size:13.5px;line-height:1.55;color:${C.muted};margin:0 0 18px">You're signed in as <b style="color:${C.dim}">@${esc(u.login)}</b>. Continue personally, or step into an organization you administer.</p>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          ${personal}
+          ${orgs}
+        </div>
+        <button data-act="chooser-close" style="width:100%;font-family:'JetBrains Mono',monospace;font-weight:600;font-size:12.5px;color:${C.muted};background:transparent;border:none;padding:14px 6px 2px;cursor:pointer">Decide later</button>
+      </div>
     </div>`;
 }
 
@@ -1541,43 +1686,96 @@ function bookmarkIcon(size: number, color: string, filled: boolean): string {
 
 export function accountScreen(s: AppState): string {
     const u = s.user!;
-    const nav = [
-        { k: "profile", l: "Profile", icon: "◉" },
-        { k: "plugins", l: "Your plugins", icon: "▤" },
-        { k: "stars", l: "Your stars", icon: "★" },
-        { k: "saved", l: "Saved", icon: bookmarkIcon(13, "currentColor", true) },
-        ...(u.admin ? [{ k: "reports", l: "Reports", icon: "⚑" }] : []),
-        { k: "settings", l: "Settings", icon: "⚙" },
-    ]
+    const acting = !!s.activeOrg && !!u.isOrg;
+    const nav = acctNavItems(u)
         .map((n) => {
-            const on = s.acctTab === n.k;
-            return `<a href="#/account" data-act="acct-tab" data-arg="${n.k}" style="display:flex;align-items:center;gap:11px;text-decoration:none;padding:11px 14px;border-radius:10px;font-size:14px;font-weight:600;color:${on ? C.text : C.soft};background:${on ? C.panel : "transparent"}"><span style="width:18px;text-align:center;color:${on ? C.lilac : C.muted}">${n.icon}</span> ${n.l}</a>`;
+            const on = s.acctTab === n.tab;
+            const label = n.tab === "profile" ? "Profile" : n.label; // "Profile" reads better than "Your profile" in the sidebar
+            return `<a href="#/account" data-act="acct-tab" data-arg="${n.tab}" style="display:flex;align-items:center;gap:11px;text-decoration:none;padding:11px 14px;border-radius:10px;font-size:14px;font-weight:600;color:${on ? C.text : C.soft};background:${on ? C.panel : "transparent"}"><span style="width:18px;text-align:center;color:${on ? C.lilac : C.muted}">${n.icon}</span> ${esc(label)}</a>`;
         })
         .join("");
     let body = "";
     if (s.acctTab === "plugins") body = acctPlugins(s);
     else if (s.acctTab === "stars") body = acctStars(s);
     else if (s.acctTab === "saved") body = acctSaved(s);
+    else if (s.acctTab === "organizations") body = acctOrganizations(s);
     else if (s.acctTab === "reports") body = acctReports(s);
     else if (s.acctTab === "settings") body = acctSettings(s);
     else body = acctProfile(s);
+
+    // While acting as an org, make the context explicit and one-click reversible.
+    const banner = acting
+        ? `<div style="display:flex;align-items:center;gap:12px;background:${C.deep};border:1px solid ${C.line2};border-radius:12px;padding:12px 15px;margin-bottom:16px">
+        <span style="font-size:16px;color:${C.lilac};flex-shrink:0">◈</span>
+        <div style="flex:1;min-width:0;font-size:13.5px;color:${C.soft}">Acting as <b style="color:${C.text}">@${esc(u.login)}</b>. Changes you make here apply to the organization.</div>
+        <button data-act="back-to-personal" style="flex-shrink:0;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${C.text};background:transparent;border:1px solid ${C.line2};padding:7px 13px;border-radius:8px;cursor:pointer">Back to personal</button>
+      </div>`
+        : "";
 
     return `
 <div style="padding:32px 0 72px">
   <div class="r-split" style="display:grid;grid-template-columns:230px 1fr;gap:32px;align-items:start">
     <aside class="r-side" style="position:sticky;top:78px;display:flex;flex-direction:column;gap:14px">
-      <div style="display:flex;align-items:center;gap:12px;background:${C.panel};border:1px solid ${C.line};border-radius:14px;padding:15px">
+      <div style="display:flex;align-items:center;gap:12px;background:${C.panel};border:1px solid ${acting ? C.line2 : C.line};border-radius:14px;padding:15px">
         ${avatarSpan(u.name, u.initial, u.bg, u.avatarUrl, 44, 17)}
         <div style="min-width:0">
-          <div style="font-size:15px;font-weight:700;color:${C.text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(u.name)}</div>
+          <div style="display:flex;align-items:center;gap:6px"><span style="font-size:15px;font-weight:700;color:${C.text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(u.name)}</span>${acting ? orgTag(9) : ""}</div>
           <div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.muted}">@${esc(u.login)}</div>
         </div>
       </div>
       <div style="display:flex;flex-direction:column;gap:3px">${nav}</div>
     </aside>
-    <div style="min-width:0">${body}</div>
+    <div style="min-width:0">${banner}${body}</div>
   </div>
 </div>`;
+}
+
+// The "Organizations" tab: the active account's GitHub orgs. Orgs you own/admin
+// can be stepped into (act as); the rest are shown for reference. When already
+// acting as an org, the current one is marked and reversible.
+function acctOrganizations(s: AppState): string {
+    const orgs = s.orgs;
+    const actable = orgs.filter((o) => o.canActAs);
+    const card = (o: import("./types.js").OrgRef): string => {
+        const current = s.activeOrg.toLowerCase() === o.login.toLowerCase();
+        const roleBadge = o.canActAs
+            ? `<span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:${C.bg};background:${C.lilac};padding:2px 8px;border-radius:100px">${esc(o.role)}</span>`
+            : `<span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:${C.soft};background:${C.deep};border:1px solid ${C.line2};padding:2px 8px;border-radius:100px">${esc(o.role)}</span>`;
+        const action = current
+            ? `<button data-act="back-to-personal" style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${C.text};background:transparent;border:1px solid ${C.line2};padding:8px 14px;border-radius:8px;cursor:pointer">Leave</button>`
+            : o.canActAs
+              ? `<button data-act="act-as-org" data-arg="${escAttr(o.login)}" style="font-family:'Outfit',sans-serif;font-size:13px;font-weight:700;color:${C.bg};background:${C.lilac};border:none;padding:8px 15px;border-radius:8px;cursor:pointer">Switch to</button>`
+              : `<span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.muted}">member</span>`;
+        return `
+        <div style="display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;background:${C.panel};border:1px solid ${current ? C.lilac : C.line};border-radius:14px;padding:16px 18px">
+          ${avatarSpan(o.name, initialFor(o.name), avatarBgFor(o.login), o.avatarUrl, 42, 16)}
+          <div style="min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;flex-wrap:wrap">
+              <a href="/${escAttr(o.login)}" data-act="user" data-arg="${escAttr(o.login)}" style="text-decoration:none;font-size:15px;font-weight:700;color:${C.text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(o.name)}</a>
+              ${orgTag(9)}
+              ${roleBadge}
+              ${current ? `<span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:${C.green}">✓ active</span>` : ""}
+            </div>
+            <a href="/${escAttr(o.login)}" data-act="user" data-arg="${escAttr(o.login)}" style="text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:${C.lilac}">@${esc(o.login)}</a>
+          </div>
+          ${action}
+        </div>`;
+    };
+    const body = orgs.length
+        ? `<div style="display:flex;flex-direction:column;gap:12px">${orgs.map(card).join("")}</div>`
+        : `<div style="padding:30px;color:${C.muted};font-size:14px;background:${C.panel};border:1px solid ${C.line};border-radius:14px;text-align:center">You're not a member of any GitHub organizations, or we couldn't read them.<div style="margin-top:8px;font-size:12.5px">Organizations you <b style="color:${C.soft}">own or administer</b> let you publish and manage plugins on the org's behalf.</div></div>`;
+    const hint = orgs.length
+        ? `<p style="font-size:13.5px;line-height:1.6;color:${C.muted};margin:0 0 18px;max-width:620px">Switch into an organization you own or administer to manage its plugins, stars and discussion as the org. ${actable.length ? "" : "You can view these, but only owners/admins can act as an organization."}</p>`
+        : "";
+    return `
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:${hint ? "10" : "18"}px;flex-wrap:wrap">
+          <h1 style="font-weight:800;font-size:24px;letter-spacing:-0.6px;margin:0">Organizations</h1>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:15px;color:${C.muted};font-weight:500">${orgs.length}</span>
+        </div>
+        ${hint}
+        ${body}
+      </div>`;
 }
 
 function ownedPlugins(s: AppState): (Package & { role: string })[] {
@@ -1637,8 +1835,8 @@ function acctProfile(s: AppState): string {
             ${profileStats(u)}
           </div>
           <div style="display:flex;gap:8px;flex-shrink:0">
-            <button data-act="sync-github" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${C.text};background:transparent;border:1px solid ${C.line2};padding:9px 15px;border-radius:9px;cursor:pointer">⟳ Sync from GitHub</button>
-            <a href="#/account" data-act="acct-tab" data-arg="settings" style="text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${C.text};border:1px solid ${C.line2};padding:9px 15px;border-radius:9px">Edit profile</a>
+            ${u.isOrg ? "" : `<button data-act="sync-github" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${C.text};background:transparent;border:1px solid ${C.line2};padding:9px 15px;border-radius:9px;cursor:pointer">⟳ Sync from GitHub</button>`}
+            <a href="#/account" data-act="acct-tab" data-arg="settings" style="text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${C.text};border:1px solid ${C.line2};padding:9px 15px;border-radius:9px">${u.isOrg ? "Organization" : "Edit profile"}</a>
           </div>
         </div>
 
@@ -1943,20 +2141,6 @@ export function userScreen(s: AppState): string {
 function acctSettings(s: AppState): string {
     const u = s.user!;
     const bio = s.bioDraft != null ? s.bioDraft : u.bio || "";
-    const toggles = [
-        { k: "releases", l: "New releases from plugins you use" },
-        { k: "security", l: "Security advisories" },
-        { k: "digest", l: "Weekly digest" },
-    ]
-        .map((t, i) => {
-            const on = s.settings[t.k as keyof AppState["settings"]];
-            return `
-            <label data-act="setting" data-arg="${t.k}" style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 0;border-top:${i === 0 ? "none" : `1px solid ${C.line}`};cursor:pointer">
-              <span style="font-size:14px;color:#d8cef5">${esc(t.l)}</span>
-              <span style="width:34px;height:19px;border-radius:100px;background:${on ? C.green : C.line};position:relative;flex-shrink:0;transition:background .2s"><span style="position:absolute;top:2px;left:${on ? "17px" : "2px"};width:15px;height:15px;border-radius:50%;background:#fff;transition:left .2s"></span></span>
-            </label>`;
-        })
-        .join("");
     return `
       <div style="display:flex;flex-direction:column;gap:18px">
         <h1 style="font-weight:800;font-size:24px;letter-spacing:-0.6px;margin:0">Settings</h1>
@@ -1974,6 +2158,39 @@ function acctSettings(s: AppState): string {
           <div style="display:flex;justify-content:flex-end;margin-top:16px"><button data-act="save-profile" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${C.bg};background:${C.lilac};border:none;padding:10px 18px;border-radius:9px;cursor:pointer">Save changes</button></div>
         </div>
 
+        ${u.isOrg ? orgSettingsNote(u) : personalSettings(s)}
+      </div>`;
+}
+
+// orgSettingsNote replaces the person-only settings (emails, connected account,
+// delete account) when acting as an org — those belong to the member, not the
+// organization, which is managed on GitHub.
+function orgSettingsNote(u: User): string {
+    return `<div style="background:${C.panel};border:1px solid ${C.line};border-radius:16px;padding:22px 24px">
+          <div style="font-weight:700;font-size:16px;margin-bottom:8px">Organization</div>
+          <p style="font-size:13.5px;line-height:1.6;color:${C.muted};margin:0 0 14px">Membership, billing and access for <b style="color:${C.soft}">@${esc(u.login)}</b> are managed on GitHub. Your personal email and connected-account settings live under your own account — switch back to personal to change them.</p>
+          <a href="${escAttr(u.htmlUrl || `https://github.com/${u.login}`)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:9px;text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${C.text};border:1px solid ${C.line2};padding:10px 15px;border-radius:9px">⎇ Manage on GitHub ↗</a>
+        </div>`;
+}
+
+// personalSettings renders the account-owner-only settings sections.
+function personalSettings(s: AppState): string {
+    const u = s.user!;
+    const toggles = [
+        { k: "releases", l: "New releases from plugins you use" },
+        { k: "security", l: "Security advisories" },
+        { k: "digest", l: "Weekly digest" },
+    ]
+        .map((t, i) => {
+            const on = s.settings[t.k as keyof AppState["settings"]];
+            return `
+            <label data-act="setting" data-arg="${t.k}" style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 0;border-top:${i === 0 ? "none" : `1px solid ${C.line}`};cursor:pointer">
+              <span style="font-size:14px;color:#d8cef5">${esc(t.l)}</span>
+              <span style="width:34px;height:19px;border-radius:100px;background:${on ? C.green : C.line};position:relative;flex-shrink:0;transition:background .2s"><span style="position:absolute;top:2px;left:${on ? "17px" : "2px"};width:15px;height:15px;border-radius:50%;background:#fff;transition:left .2s"></span></span>
+            </label>`;
+        })
+        .join("");
+    return `
         <div style="background:${C.panel};border:1px solid ${C.line};border-radius:16px;padding:22px 24px">
           <div style="font-weight:700;font-size:16px;margin-bottom:16px">Connected account</div>
           <div style="display:flex;align-items:center;gap:13px;background:${C.deep};border:1px solid ${C.line};border-radius:12px;padding:14px 16px;margin-bottom:14px">
@@ -1997,6 +2214,5 @@ function acctSettings(s: AppState): string {
             <div style="min-width:200px"><div style="font-size:14px;font-weight:600;color:${C.text};margin-bottom:2px">Delete account</div><div style="font-size:12.5px;color:#b78ba3">Permanently removes your account and unpublishes your plugins.</div></div>
             <button data-act="signout" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#ffb4d2;background:transparent;border:1px solid #6b3453;padding:10px 16px;border-radius:9px;cursor:pointer">Delete account</button>
           </div>
-        </div>
-      </div>`;
+        </div>`;
 }

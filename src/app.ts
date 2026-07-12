@@ -11,6 +11,7 @@ import {
     authScreen,
     footer,
     homeScreen,
+    loginChooserModal,
     nav,
     notificationsScreen,
     packageScreen,
@@ -23,7 +24,7 @@ import {
 } from "./screens.js";
 import { findPackage, state } from "./state.js";
 import type { AcctTab, PkgTab, Sort } from "./state.js";
-import type { ViewUser } from "./types.js";
+import type { Me, ViewUser } from "./types.js";
 import { pkgPath } from "./util.js";
 
 const root = (): HTMLElement => document.getElementById("app")!;
@@ -54,9 +55,26 @@ function screenBody(): string {
 
 function render(): void {
     applyMeta();
-    root().innerHTML = nav(state) + screenBody() + footer(state);
+    root().innerHTML =
+        nav(state) + screenBody() + footer(state) + (state.loginChooser ? loginChooserModal(state) : "");
     enhanceCodeBlocks();
     enhanceSparkline();
+}
+
+// applyMe folds a /api/me session view into state: the active identity plus the
+// account-switcher roster and the active account's organizations. Null clears it.
+function applyMe(me: Me | null): void {
+    if (!me) {
+        state.user = null;
+        state.accounts = [];
+        state.orgs = [];
+        state.activeOrg = "";
+        return;
+    }
+    state.user = me.user;
+    state.accounts = me.accounts;
+    state.orgs = me.orgs;
+    state.activeOrg = me.activeOrg;
 }
 
 const SITE = "Plugins";
@@ -796,20 +814,76 @@ function doSignIn(): void {
     window.location.href = api.signInUrl(location.href);
 }
 
-async function doSignOut(): Promise<void> {
-    await api.signOut();
+// Add another account: same OAuth flow, but GitHub's account picker lets you
+// choose a *different* login. The callback merges it into the session (rather
+// than replacing the current one), so both stay signed in.
+function doAddAccount(): void {
+    window.location.href = api.signInUrl(location.href);
+}
+
+async function doSignOut(all = false): Promise<void> {
+    const remaining = await api.signOut(all);
+    // A single sign-out that leaves other accounts signed in: the server has
+    // already made one of them active — reflect that instead of a hard reload.
+    if (!all && remaining > 0) {
+        applyMe(await api.getMe());
+        afterIdentityChange();
+        return;
+    }
     api.clearLocalState();
-    state.user = null;
+    applyMe(null);
     state.menuOpen = false;
+    state.switcherOpen = false;
     // Hard-reload from the root so ALL in-memory + cached state is erased. The
-    // next sign-in then goes through GitHub's account picker with a clean slate,
-    // so switching accounts actually works.
+    // next sign-in then goes through GitHub's account picker with a clean slate.
     try {
         location.hash = "#/";
         location.reload();
     } catch {
         navHome();
     }
+}
+
+// afterIdentityChange resets the per-identity view state (stars, inbox, open
+// menus) and lands on the now-active identity's account.
+function afterIdentityChange(): void {
+    state.menuOpen = false;
+    state.switcherOpen = false;
+    state.loginChooser = false;
+    state.starShorts = null;
+    state.notifications = null;
+    showAccount("profile", true);
+    void loadNotifications();
+}
+
+// Make another already-signed-in account active (no re-auth — the server just
+// flips which session id is active).
+async function switchAccount(id: string): Promise<void> {
+    const me = await api.switchAccount(id);
+    if (!me) {
+        alert("Couldn't switch to that account — it may have been signed out.");
+        return;
+    }
+    applyMe(me);
+    afterIdentityChange();
+}
+
+// Start acting on behalf of an organization the active account administers.
+async function actAsOrg(login: string): Promise<void> {
+    const me = await api.actAsOrg(login);
+    if (!me) {
+        alert(`Couldn't switch to @${login} — you may no longer administer it.`);
+        return;
+    }
+    applyMe(me);
+    afterIdentityChange();
+}
+
+// Drop back to the personal account from an org context.
+async function backToPersonal(): Promise<void> {
+    const me = await api.actAsOrg("");
+    if (me) applyMe(me);
+    afterIdentityChange();
 }
 
 // Stars mirror the package's real GitHub stars. With permission (public_repo
@@ -1388,10 +1462,41 @@ function dispatch(act: string, arg: string | null, el: HTMLElement): void {
             void doSignIn();
             break;
         case "signout":
-            void doSignOut();
+            void doSignOut(false);
+            break;
+        case "signout-all":
+            void doSignOut(true);
+            break;
+        case "add-account":
+            doAddAccount();
+            break;
+        case "switch-account":
+            if (arg) void switchAccount(arg);
+            break;
+        case "act-as-org":
+            if (arg) void actAsOrg(arg);
+            break;
+        case "back-to-personal":
+            void backToPersonal();
+            break;
+        case "switcher-toggle":
+            state.switcherOpen = !state.switcherOpen;
+            render();
+            break;
+        case "chooser-personal":
+            state.loginChooser = false;
+            render();
+            break;
+        case "chooser-org":
+            if (arg) void actAsOrg(arg);
+            break;
+        case "chooser-close":
+            state.loginChooser = false;
+            render();
             break;
         case "menu-toggle":
             state.menuOpen = !state.menuOpen;
+            if (!state.menuOpen) state.switcherOpen = false;
             render();
             break;
         case "acct":
@@ -1838,9 +1943,24 @@ export async function init(): Promise<void> {
         root().innerHTML = `<div style="padding:120px 0;text-align:center;color:#ff9ec4;font-size:15px">Failed to load the registry index.<br><span style="color:#7d72b0;font-size:13px">${String(err)}</span></div>`;
         return;
     }
-    state.user = await api.getMe();
+    applyMe(await api.getMe());
     enrichCatalogStars(); // real GitHub stargazers for the home/search cards
     await completePendingStar();
+    // Just signed in and you belong to org(s) you can act as? Offer the "continue
+    // as personal or one of your orgs" chooser (strips the marker either way).
+    maybeLoginChooser();
     if (state.user) void loadNotifications(); // populate the inbox badge
     await route();
+}
+
+// maybeLoginChooser reads (and clears) the wago_login=1 marker the OAuth callback
+// leaves on the return URL. When it's present and the fresh account administers
+// at least one org, it arms the login chooser overlay for the next render.
+function maybeLoginChooser(): void {
+    const params = new URLSearchParams(location.search);
+    if (params.get("wago_login") !== "1") return;
+    params.delete("wago_login");
+    const qs = params.toString();
+    history.replaceState(null, "", location.pathname + (qs ? `?${qs}` : "") + location.hash);
+    if (state.user && state.orgs.some((o) => o.canActAs)) state.loginChooser = true;
 }

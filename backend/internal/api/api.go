@@ -31,11 +31,12 @@ type App struct {
 	Device   *deviceAuth
 	list     *listCache
 	orgRoles orgRoleCache
+	orgs     orgsCache
 }
 
 // New builds an App and its auth dependencies from config and a store.
 func New(cfg config.Config, st store.Store) *App {
-	return &App{
+	a := &App{
 		Cfg:      cfg,
 		Store:    st,
 		Sessions: auth.NewSessions(cfg, st),
@@ -50,6 +51,11 @@ func New(cfg config.Config, st store.Store) *App {
 		Device: newDeviceAuth(),
 		list:   &listCache{},
 	}
+	// Let a session "act as" an org: resolve the effective org identity when the
+	// active user administers it. Kept as a hook so the auth package needn't know
+	// about GitHub or the role caches.
+	a.Sessions.ActAs = a.resolveOrgIdentity
+	return a
 }
 
 // listCache holds pre-marshaled anonymous responses — the default package list
@@ -147,6 +153,7 @@ func (a *App) NewRouter() http.Handler {
 	mux.HandleFunc("POST /api/device/token", a.handleDeviceToken)
 	mux.HandleFunc("POST /api/device/approve", a.handleDeviceApprove)
 	mux.HandleFunc("POST /api/logout", a.handleLogout)
+	mux.HandleFunc("POST /api/session/switch", a.handleSwitchAccount)
 	mux.HandleFunc("GET /api/me", a.handleMe)
 	mux.HandleFunc("GET /api/me/stars", a.handleMyStars)
 	mux.HandleFunc("GET /api/users/{login}", a.handlePublicUser)

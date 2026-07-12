@@ -270,6 +270,12 @@ type User struct {
 	// Admin grants site-wide moderation (derived from config.AdminLogins at
 	// sign-in). Exposed to the client so the UI can surface admin affordances.
 	Admin bool `json:"admin,omitempty"`
+
+	// IsOrg marks a pseudo-user that represents a GitHub organization rather than
+	// a person. Org identities are keyed "org:<login>" and let a member who
+	// administers the org act on the org's behalf (own packages, star, discuss)
+	// while reusing every user-keyed store path. Orgs never carry an OAuth token.
+	IsOrg bool `json:"isOrg,omitempty"`
 }
 
 // Review is the persisted form of a package review. Author identity is joined in

@@ -8,9 +8,12 @@
 
 import { API_BASE, PACKAGES_URL } from "./config.js";
 import type {
+    Account,
     Comment,
     InstallPoint,
+    Me,
     Notification,
+    OrgRef,
     Package,
     Registry,
     Report,
@@ -164,10 +167,46 @@ export function normalizePackage(raw: RawPackage): Package {
 
 // ── auth ──────────────────────────────────────────────────────────────────────
 
-export async function getMe(): Promise<User | null> {
+// The raw /api/me payload: the sanitized active identity plus the session's
+// account roster and the active account's organizations.
+type RawMe = { login: string } & Partial<User> & {
+    accounts?: Account[];
+    orgs?: OrgRef[];
+    activeOrg?: string;
+};
+
+function normalizeMe(raw: RawMe): Me {
+    return {
+        user: normalizeUser(raw),
+        accounts: raw.accounts || [],
+        orgs: raw.orgs || [],
+        activeOrg: raw.activeOrg || "",
+    };
+}
+
+export async function getMe(): Promise<Me | null> {
     try {
-        const raw = await apiGet<{ login: string } & Partial<User>>("/api/me");
-        return normalizeUser(raw);
+        return normalizeMe(await apiGet<RawMe>("/api/me"));
+    } catch {
+        return null;
+    }
+}
+
+// switchAccount makes another already-signed-in account active (clearing any
+// org-acting), returning the fresh session view. Never signs anyone new in.
+export async function switchAccount(id: string | number): Promise<Me | null> {
+    try {
+        return normalizeMe(await apiSend<RawMe>("/api/session/switch", "POST", { id: String(id) }));
+    } catch {
+        return null;
+    }
+}
+
+// actAsOrg starts acting on behalf of an organization the active account
+// administers. Pass "" to drop back to the personal account.
+export async function actAsOrg(login: string): Promise<Me | null> {
+    try {
+        return normalizeMe(await apiSend<RawMe>("/api/session/switch", "POST", { org: login }));
     } catch {
         return null;
     }
@@ -191,11 +230,15 @@ export function signInUrl(returnTo: string, star = false): string {
     return star ? `${base}&star=1` : base;
 }
 
-export async function signOut(): Promise<void> {
+// signOut removes the active account from the session (or every account when
+// all=true). Returns how many accounts remain signed in, so the caller can keep
+// the session going on another account instead of a hard reload.
+export async function signOut(all = false): Promise<number> {
     try {
-        await apiSend("/api/logout", "POST");
+        const r = await apiSend<{ remaining?: number }>(`/api/logout${all ? "?all=1" : ""}`, "POST");
+        return r.remaining ?? 0;
     } catch {
-        /* ignore — we clear local state regardless */
+        return 0; // treat as fully signed out
     }
 }
 

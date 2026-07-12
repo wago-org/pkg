@@ -2,17 +2,24 @@
 // event layer mutates it and asks for a re-render. Ephemeral UI bits (open
 // menus, draft text, active tab) live here alongside loaded data.
 
-import type { Comment, Issue, InstallPoint, Notification, Package, Registry, Report, Review, User, ViewUser } from "./types.js";
+import type { Account, Comment, Issue, InstallPoint, Notification, OrgRef, Package, Registry, Report, Review, User, ViewUser } from "./types.js";
 
 export type Screen = "home" | "search" | "package" | "auth" | "account" | "user" | "notifications";
 export type PkgTab = "readme" | "reviews" | "comments" | "dependencies" | "dependents" | "versions" | "subpackages" | "settings";
 export type Sort = "popular" | "recent";
-export type AcctTab = "profile" | "plugins" | "stars" | "saved" | "reports" | "settings";
+export type AcctTab = "profile" | "plugins" | "stars" | "saved" | "organizations" | "reports" | "settings";
 
 export interface AppState {
     registry: Registry | null;
-    user: User | null;
+    user: User | null; // the active identity (a person, or an org being acted as)
     screen: Screen;
+
+    // multi-account session + org acting
+    accounts: Account[]; // every identity signed in on this browser
+    orgs: OrgRef[]; // the active account's GitHub orgs (some actable)
+    activeOrg: string; // org login being acted as, "" when personal
+    switcherOpen: boolean; // account-switcher submenu open (inside the profile menu)
+    loginChooser: boolean; // post-sign-in "personal or org?" chooser overlay
 
     // search
     query: string;
@@ -108,6 +115,12 @@ export const state: AppState = {
     registry: null,
     user: null,
     screen: "home",
+
+    accounts: [],
+    orgs: [],
+    activeOrg: "",
+    switcherOpen: false,
+    loginChooser: false,
 
     query: "",
     sort: "popular",

@@ -249,6 +249,36 @@ export interface User {
     // repos on their behalf. Derived server-side; never the raw token.
     canStar?: boolean;
     admin?: boolean; // site-wide admin (moderate any package's discussion)
+    isOrg?: boolean; // this identity is an organization the user is acting as
     initial: string;
     bg: string;
+}
+
+// Account is one identity signed in on this browser, for the account switcher.
+// Several can be signed in at once; exactly one is active.
+export interface Account {
+    id: string | number;
+    login: string;
+    name: string;
+    avatarUrl?: string;
+    active: boolean;
+}
+
+// OrgRef is one of the active account's GitHub organizations. canActAs is true
+// for orgs the user owns/administers — those they may switch into and act as.
+export interface OrgRef {
+    login: string;
+    name: string;
+    avatarUrl?: string;
+    role: string; // "admin" | "member"
+    canActAs: boolean;
+}
+
+// Me is the full session view returned by /api/me: the active identity plus the
+// switcher roster and the active account's organizations.
+export interface Me {
+    user: User;
+    accounts: Account[];
+    orgs: OrgRef[];
+    activeOrg: string; // org login currently acted as, "" when personal
 }

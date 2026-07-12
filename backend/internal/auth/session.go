@@ -35,6 +35,13 @@ type Sessions struct {
 	devMode      bool
 	cookieDomain string
 	store        store.Store
+
+	// ActAs, when set, resolves the effective identity for a session that is
+	// "acting as" an organization: given the active real user and an org login,
+	// it returns the org's pseudo-user (when the user is authorized to act on the
+	// org's behalf) or the base user unchanged. Wired by the api package so this
+	// package stays free of GitHub/cache concerns. Nil = org-acting disabled.
+	ActAs func(base *model.User, org string) *model.User
 }
 
 // NewSessions builds a Sessions from config and the backing store.
@@ -51,6 +58,42 @@ func NewSessions(cfg config.Config, st store.Store) *Sessions {
 type payload struct {
 	UID string `json:"uid"`
 	Exp int64  `json:"exp"`
+}
+
+// SessionState is the signed body of the session cookie. It holds every account
+// signed in on this browser (Accounts, real GitHub-user ids), which one is
+// currently active (Active), and an optional organization login the active user
+// is acting on behalf of (Org). Exp is the shared unix expiry. The legacy
+// single-user cookie ({uid,exp}) is still accepted on read and upgraded on the
+// next write.
+type SessionState struct {
+	Accounts []string `json:"accounts"`
+	Active   string   `json:"active"`
+	Org      string   `json:"org,omitempty"`
+	Exp      int64    `json:"exp"`
+}
+
+// normalize drops duplicates/empties and guarantees Active is a member of
+// Accounts (falling back to the first account, else clearing the state).
+func (s SessionState) normalize() SessionState {
+	seen := map[string]bool{}
+	accounts := make([]string, 0, len(s.Accounts))
+	for _, id := range s.Accounts {
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		accounts = append(accounts, id)
+	}
+	s.Accounts = accounts
+	if !seen[s.Active] {
+		s.Active = ""
+		s.Org = ""
+		if len(accounts) > 0 {
+			s.Active = accounts[0]
+		}
+	}
+	return s
 }
 
 // sign produces "base64url(payload).base64url(HMAC-SHA256(payload))".
@@ -90,9 +133,19 @@ func verify(token string, secret []byte) ([]byte, error) {
 	return body, nil
 }
 
-// NewSessionCookie builds the signed session cookie for a user id.
+// NewSessionCookie builds the signed session cookie for a single user id (a
+// fresh, single-account session). Prefer WriteSessionCookie to preserve other
+// signed-in accounts.
 func (s *Sessions) NewSessionCookie(uid string) *http.Cookie {
-	body, _ := json.Marshal(payload{UID: uid, Exp: time.Now().Add(sessionTTL).Unix()})
+	return s.WriteSessionCookie(SessionState{Accounts: []string{uid}, Active: uid})
+}
+
+// WriteSessionCookie signs a full multi-account session state into a cookie. Exp
+// is (re)stamped to the standard TTL.
+func (s *Sessions) WriteSessionCookie(st SessionState) *http.Cookie {
+	st = st.normalize()
+	st.Exp = time.Now().Add(sessionTTL).Unix()
+	body, _ := json.Marshal(st)
 	c := &http.Cookie{
 		Name:     SessionCookieName,
 		Value:    sign(body, s.secret),
@@ -107,6 +160,33 @@ func (s *Sessions) NewSessionCookie(uid string) *http.Cookie {
 		c.Domain = s.cookieDomain
 	}
 	return c
+}
+
+// ReadSession parses and verifies the session cookie into a SessionState,
+// accepting the legacy single-user cookie and returning ok=false when there is
+// no valid, unexpired session.
+func (s *Sessions) ReadSession(r *http.Request) (SessionState, bool) {
+	c, err := r.Cookie(SessionCookieName)
+	if err != nil {
+		return SessionState{}, false
+	}
+	body, err := verify(c.Value, s.secret)
+	if err != nil {
+		return SessionState{}, false
+	}
+	var st SessionState
+	if err := json.Unmarshal(body, &st); err == nil && (len(st.Accounts) > 0 || st.Active != "") {
+		if time.Now().Unix() > st.Exp {
+			return SessionState{}, false
+		}
+		return st.normalize(), true
+	}
+	// Legacy {uid,exp} cookie: upgrade in memory to a one-account session.
+	var p payload
+	if err := json.Unmarshal(body, &p); err != nil || p.UID == "" || time.Now().Unix() > p.Exp {
+		return SessionState{}, false
+	}
+	return SessionState{Accounts: []string{p.UID}, Active: p.UID, Exp: p.Exp}, true
 }
 
 // ClearSessionCookie returns a cookie that expires the session immediately.
@@ -261,24 +341,21 @@ func (s *Sessions) CurrentUser(r *http.Request) *model.User {
 		}
 		return nil
 	}
-	c, err := r.Cookie(SessionCookieName)
-	if err != nil {
-		return nil
-	}
-	body, err := verify(c.Value, s.secret)
-	if err != nil {
-		return nil
-	}
-	var p payload
-	if err := json.Unmarshal(body, &p); err != nil {
-		return nil
-	}
-	if time.Now().Unix() > p.Exp {
-		return nil
-	}
-	u, ok := s.store.GetUser(p.UID)
+	st, ok := s.ReadSession(r)
 	if !ok {
 		return nil
+	}
+	u, ok := s.store.GetUser(st.Active)
+	if !ok {
+		return nil
+	}
+	// When the session is acting on behalf of an org, hand back the org's
+	// effective identity (authorization is enforced by the ActAs resolver, which
+	// falls back to the base user when the actor is no longer an org admin).
+	if st.Org != "" && s.ActAs != nil {
+		if eff := s.ActAs(&u, st.Org); eff != nil {
+			return eff
+		}
 	}
 	return &u
 }

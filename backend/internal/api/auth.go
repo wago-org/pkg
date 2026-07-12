@@ -106,7 +106,14 @@ func (a *App) handleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.SetCookie(w, a.Sessions.NewSessionCookie(u.ID))
+	// Merge this account into any existing multi-account session (so signing in a
+	// second account adds it rather than replacing the first), and make it active.
+	st, _ := a.Sessions.ReadSession(r)
+	st.Accounts = append(st.Accounts, u.ID)
+	st.Active = u.ID
+	st.Org = "" // a fresh sign-in always lands on the personal account
+	http.SetCookie(w, a.Sessions.WriteSessionCookie(st))
+
 	// Return to the page the user started from, if we captured one; else /account.
 	dest := a.Cfg.FrontendURL + "/#/account"
 	if rt, ok := a.Sessions.ReturnDest(r); ok {
@@ -115,7 +122,24 @@ func (a *App) handleCallback(w http.ResponseWriter, r *http.Request) {
 		}
 		http.SetCookie(w, a.Sessions.ClearReturnCookie())
 	}
+	// Flag the redirect as a just-completed sign-in so the SPA can offer the
+	// "continue as personal or one of your orgs" chooser when the user has orgs.
+	dest = appendLoginFlag(dest)
 	http.Redirect(w, r, dest, http.StatusFound)
+}
+
+// appendLoginFlag adds wago_login=1 to a redirect URL's query, preserving any
+// existing query and fragment, so the SPA knows this navigation is a fresh OAuth
+// return (and can show the account/org chooser).
+func appendLoginFlag(dest string) string {
+	u, err := url.Parse(dest)
+	if err != nil {
+		return dest
+	}
+	q := u.Query()
+	q.Set("wago_login", "1")
+	u.RawQuery = q.Encode()
+	return u.String()
 }
 
 // safeReturn validates a post-auth redirect target: after resolving it against
@@ -183,26 +207,78 @@ func isNumericPort(p string) bool {
 	return true
 }
 
-// handleLogout clears the session cookie.
+// handleLogout signs out. By default it removes only the active account from the
+// session (switching to another signed-in account if one remains); with ?all=1
+// it clears the whole session. Returns how many accounts remain so the client
+// can decide whether to stay signed in.
 func (a *App) handleLogout(w http.ResponseWriter, r *http.Request) {
-	http.SetCookie(w, a.Sessions.ClearSessionCookie())
-	httpx.WriteJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	st, ok := a.Sessions.ReadSession(r)
+	if !ok || r.URL.Query().Get("all") == "1" {
+		http.SetCookie(w, a.Sessions.ClearSessionCookie())
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "remaining": 0})
+		return
+	}
+	kept := make([]string, 0, len(st.Accounts))
+	for _, id := range st.Accounts {
+		if id != st.Active {
+			kept = append(kept, id)
+		}
+	}
+	if len(kept) == 0 {
+		http.SetCookie(w, a.Sessions.ClearSessionCookie())
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "remaining": 0})
+		return
+	}
+	next := auth.SessionState{Accounts: kept, Active: kept[0]}
+	http.SetCookie(w, a.Sessions.WriteSessionCookie(next))
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "remaining": len(kept)})
 }
 
-// handleMe returns the current user, or 401.
+// handleMe returns the active identity plus the session's account roster and the
+// active account's organizations, or 401.
 func (a *App) handleMe(w http.ResponseWriter, r *http.Request) {
-	u := a.Sessions.CurrentUser(r)
-	if u == nil {
+	st, ok := a.Sessions.ReadSession(r)
+	if !ok {
 		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
+	a.writeMe(w, r, st)
+}
+
+// writeMe serializes the effective /me payload from an authoritative session
+// state (not the request cookie, so it's correct even right after a switch that
+// only reissued the cookie on the response): the active identity (personal user
+// or the org it is acting as), the account switcher roster, the active account's
+// organizations, and the org login actually in effect.
+func (a *App) writeMe(w http.ResponseWriter, _ *http.Request, st auth.SessionState) {
+	base, ok := a.Store.GetUser(st.Active)
+	if !ok {
+		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	eff := &base
+	if st.Org != "" {
+		if e := a.resolveOrgIdentity(&base, st.Org); e != nil {
+			eff = e
+		}
+	}
 	// Expose only a derived capability flag, never the token/scopes themselves.
-	canStar := u.GitHubToken != "" && hasStarScope(u.GitHubScopes)
-	su := sanitize(*u)
+	canStar := eff.GitHubToken != "" && hasStarScope(eff.GitHubScopes)
+	su := sanitize(*eff)
 	raw, _ := json.Marshal(su)
 	var m map[string]any
 	_ = json.Unmarshal(raw, &m)
 	m["canStar"] = canStar
+	m["accounts"] = a.accountViews(st)
+	// Report the org actually in effect (a revoked admin silently drops to
+	// personal, so reflect that rather than the requested org).
+	activeOrg := ""
+	if eff.IsOrg {
+		activeOrg = eff.Login
+	}
+	m["activeOrg"] = activeOrg
+	// Organizations belong to the active *real* account, not the org identity.
+	m["orgs"] = orgViews(a.userOrgs(&base))
 	httpx.WriteJSON(w, http.StatusOK, m)
 }
 
@@ -233,6 +309,7 @@ func (a *App) handlePublicUser(w http.ResponseWriter, r *http.Request) {
 		"publicRepos":     u.PublicRepos,
 		"starsGiven":      len(a.Store.StarsForUser(u.ID)),
 		"claimed":         true,
+		"isOrg":           u.IsOrg,
 	})
 }
 

@@ -62,9 +62,11 @@ type ghEmail struct {
 
 // AuthorizeURL builds the GitHub OAuth authorize URL for the given state. When
 // star is true the public_repo scope is also requested, letting the registry
-// star repositories on the user's behalf.
+// star repositories on the user's behalf. read:org is always requested so the
+// registry can list the user's organizations and verify which ones they
+// administer (the signal that lets them act on the org's behalf).
 func (g *GitHub) AuthorizeURL(state string, star bool) string {
-	scope := "read:user user:email"
+	scope := "read:user user:email read:org"
 	if star {
 		scope += " public_repo"
 	}
@@ -191,6 +193,102 @@ func (g *GitHub) RepoAccess(token, owner, repo string) (perm string, isOrg bool,
 		return "read", isOrg, nil
 	}
 	return "none", isOrg, nil
+}
+
+// Org is one of the authenticated user's GitHub organizations, with the profile
+// bits the registry surfaces and the viewer's role in it. Role is "admin" when
+// the user is an org owner (or the special-case single-owner), else "member".
+type Org struct {
+	Login     string `json:"login"`
+	Name      string `json:"name"`
+	AvatarURL string `json:"avatarUrl"`
+	Role      string `json:"role"`
+	Bio       string `json:"bio,omitempty"`
+	Blog      string `json:"blog,omitempty"`
+	Location  string `json:"location,omitempty"`
+	HTMLURL   string `json:"htmlUrl,omitempty"`
+	CreatedAt string `json:"githubCreatedAt,omitempty"`
+}
+
+// ghMembership is one entry of GET /user/memberships/orgs — the viewer's role in
+// each org plus a nested organization profile summary.
+type ghMembership struct {
+	Role         string `json:"role"` // "admin" | "member"
+	State        string `json:"state"`
+	Organization struct {
+		Login       string `json:"login"`
+		AvatarURL   string `json:"avatar_url"`
+		Description string `json:"description"`
+	} `json:"organization"`
+}
+
+// FetchOrgs lists the authenticated user's organization memberships (active
+// only), newest GitHub API page first. Requires the read:org scope. The role
+// distinguishes org owners ("admin") from plain members.
+func (g *GitHub) FetchOrgs(token string) ([]Org, error) {
+	ms, err := ghGetJSONSlice[ghMembership](token, "https://api.github.com/user/memberships/orgs?per_page=100&state=active")
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Org, 0, len(ms))
+	for _, m := range ms {
+		if m.Organization.Login == "" {
+			continue
+		}
+		out = append(out, Org{
+			Login:     m.Organization.Login,
+			Name:      m.Organization.Login,
+			AvatarURL: m.Organization.AvatarURL,
+			Role:      strings.ToLower(m.Role),
+			Bio:       m.Organization.Description,
+		})
+	}
+	return out, nil
+}
+
+// OrgRole returns the authenticated user's role in a single organization
+// ("admin", "member") or "" when they are not a member / it can't be read.
+func (g *GitHub) OrgRole(token, org string) string {
+	m, err := ghGetJSON[ghMembership](token, "https://api.github.com/user/memberships/orgs/"+url.PathEscape(org))
+	if err != nil || m.State != "active" {
+		return ""
+	}
+	return strings.ToLower(m.Role)
+}
+
+// ghOrg is the subset of GET /orgs/{org} we surface on an org profile.
+type ghOrg struct {
+	Login       string `json:"login"`
+	Name        string `json:"name"`
+	AvatarURL   string `json:"avatar_url"`
+	Description string `json:"description"`
+	Blog        string `json:"blog"`
+	Location    string `json:"location"`
+	HTMLURL     string `json:"html_url"`
+	CreatedAt   string `json:"created_at"`
+}
+
+// FetchOrgProfile retrieves an organization's public profile, used to seed the
+// org's pseudo-user record the first time a member acts on its behalf.
+func (g *GitHub) FetchOrgProfile(token, org string) (Org, error) {
+	o, err := ghGetJSON[ghOrg](token, "https://api.github.com/orgs/"+url.PathEscape(org))
+	if err != nil {
+		return Org{}, err
+	}
+	name := o.Name
+	if name == "" {
+		name = o.Login
+	}
+	return Org{
+		Login:     o.Login,
+		Name:      name,
+		AvatarURL: o.AvatarURL,
+		Bio:       o.Description,
+		Blog:      o.Blog,
+		Location:  o.Location,
+		HTMLURL:   o.HTMLURL,
+		CreatedAt: o.CreatedAt,
+	}, nil
 }
 
 // FetchUser retrieves the authenticated GitHub user, resolving a primary email
